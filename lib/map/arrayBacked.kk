@@ -115,8 +115,45 @@ pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
           
   lookup-at(hash-idx)
   
-pub fun delete(m : arrayBackedMap<k,v>, key : k) : arrayBackedMap<k,v>
-  m
+// TODO: What if key isn't present in map?
+pub fun delete(m : arrayBackedMap<k,v>, key : k) : <exn,div> arrayBackedMap<k,v>
+  val hash-func = m.hashFunc
+  val hash-idx = hash-func(key) % m.occupied.length
+
+  val k-cmp = m.keyCmp
+
+  fun lookup-at(i : int)
+    if i >= m.occupied.length || m.occupied[i] == False then Nothing
+    else
+      if k-cmp(m.keys[i], key) then Just(i)
+      else lookup-at(i + 1)
+
+  val remove-idx-maybe = lookup-at(hash-idx)
+  match remove-idx-maybe
+    Nothing -> m // TODO: Throw exn here?
+    Just(idx) ->
+      fun get-new-key(i)
+        if i == idx then m.default-key
+        else m.keys[i]
+
+      fun get-new-occupied(i)
+        if i == idx then False
+        else m.occupied[i]
+
+      fun get-new-member(i)
+        if i == idx then m.default-val
+        else m.members[i]
+
+      val new-occupied = vector-init(m.occupied.length, get-new-occupied)
+      val new-keys = vector-init(m.keys.length, get-new-key)
+      val new-members = vector-init(m.members.length, get-new-member)
+
+      m(
+        occupied = new-occupied,
+        keys = new-keys,
+        members = new-members
+      )
+ 
 
 // Traversal operations
 
