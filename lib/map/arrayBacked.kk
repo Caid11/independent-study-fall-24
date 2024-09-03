@@ -30,7 +30,7 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, default-key : k,
     default-value
   )
 
-fun resize(m : arrayBackedMap<k,v>) : <div> arrayBackedMap<k,v>
+fun resize(m : arrayBackedMap<k,v>) : <div,exn> arrayBackedMap<k,v>
   val new-capacity = max(32, m.occupied.length * 2)
   val new-m = m(
     occupied = vector(new-capacity, False),
@@ -44,61 +44,44 @@ fun resize(m : arrayBackedMap<k,v>) : <div> arrayBackedMap<k,v>
     .foldl(new-m, fn(im, ((_,k),v)) im.insert(k, v))
 
 // Basic operations
-fun has-unoccupied-slot(m : arrayBackedMap<k,v>) : bool
-  val occupied-maybe = m.occupied.foreach-while(fn(o)
-    if o == False then Just(True)
-    else Nothing
-  )
-  match occupied-maybe
-    Nothing -> False
-    _ -> True
 
-fun find-unoccupied-slot(m : arrayBackedMap<k,v>, start-idx : int, key : k) : maybe<int>
+fun find-unoccupied-slot(m : arrayBackedMap<k,v>, start-idx : int, key : k) : <div,exn> int
   val cmp-key = m.keyCmp
 
-  list(0, m.occupied.length)
-    .zip(m.occupied.list)
-    .zip(m.keys.list)
-    .find-maybe(fn(((i,o),ki))
-      if i >=start-idx && (o == False || cmp-key(key,ki)) then Just(start-idx)
-      else Nothing
-    )
+  fun find-slot(idx)
+    if idx >= m.occupied.length then -1 // TODO: We should wrap
+    else
+      if (m.occupied[idx] == False || cmp-key(key, m.keys[idx])) then idx
+      else find-slot(idx + 1)
 
-pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div> arrayBackedMap<k,v>
-  val resized-m = if m.has-unoccupied-slot
-    then m
-    else m.resize
+  find-slot(start-idx)
 
-  val hash-func = resized-m.hashFunc
-  val hash-idx = hash-func(key) % resized-m.occupied.length
-  val insert-idx = match find-unoccupied-slot(resized-m, hash-idx, key)
-    Just(idx) -> idx
-    Nothing -> 0
+pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedMap<k,v>
+  val hash-func = m.hashFunc
+  val hash-idx = hash-func(key) % m.occupied.length
 
-  fun get-new-members(i)
-    if i == insert-idx then x
-    else 
-      match resized-m.members.at(i)
-        Just(s) -> s
-        Nothing -> resized-m.default-val
+  val slot = find-unoccupied-slot(m, hash-idx, key)
+  val (insert-idx, resized-m) = if slot >= 0 then (slot, m) 
+    else
+      val resized = m.resize
+      val idx = resized.find-unoccupied-slot(hash-idx, key)
+      (idx, resized)
 
-  fun get-new-keys(i)
-    if i == insert-idx then key
-    else 
-      match resized-m.keys.at(i)
-        Just(s) -> s
-        Nothing -> resized-m.default-key
-
-  fun get-new-occupied(i)
+  val updated-occupied = vector-init(resized-m.occupied.length, fn(i)
     if i == insert-idx then True
-    else 
-      match resized-m.occupied.at(i)
-        Just(s) -> s
-        Nothing -> False
+    else resized-m.occupied[i]
+  )
 
-  val updated-occupied = vector-init(resized-m.occupied.length, get-new-occupied)
-  val updated-keys = vector-init(resized-m.keys.length, get-new-keys)
-  val updated-members = vector-init(resized-m.members.length, get-new-members)
+  val updated-keys = vector-init(resized-m.keys.length, fn(i)
+    if i == insert-idx then key
+    else  resized-m.keys[i]
+  )
+
+  val updated-members = vector-init(resized-m.members.length, fn(i)
+    if i == insert-idx then x
+    else resized-m.members[i]
+  )
+
   resized-m(occupied = updated-occupied, keys = updated-keys, members = updated-members)
 
 pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
