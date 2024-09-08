@@ -12,22 +12,22 @@ import std/num/int64
 pub struct arrayBackedMap<k,v>
   hashFunc : k -> int
   keyCmp : (k,k) -> bool
+  default-key : k
+  default-val : v
   occupied : vector<bool>
   keys : vector<k>
   members : vector<v>
-  default-key : k
-  default-val : v
 
 // Create a new map
 pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, default-key : k, default-value : v, initial-capacity : int = 32) : arrayBackedMap<k,v>
   ArrayBackedMap(
     hashFunc,
     keyCmp,
+    default-key,
+    default-value,
     vector/vector(initial-capacity, False),
     vector/vector(initial-capacity, default-key),
-    vector/vector(initial-capacity, default-value),
-    default-key,
-    default-value
+    vector/vector(initial-capacity, default-value)
   )
 
 fun resize(m : arrayBackedMap<k,v>) : <div,exn> arrayBackedMap<k,v>

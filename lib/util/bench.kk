@@ -19,7 +19,7 @@ pub fun bench(bench-func : (int) -> _e (),
               input-sizes : vector<int>,
               num-warmup-iterations : int,
               num-iterations : int)
-  list(0, input-sizes.length).map(fn(idx)
+  list(0, input-sizes.length - 1).map(fn(idx)
     // Warmup
     repeat(num-warmup-iterations, { bench-func(idx) })
 
