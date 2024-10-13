@@ -25,7 +25,7 @@ fun string(x : implementation)
     ArrayBacked -> "ArrayBacked"
     HAMT -> "HAMT"
 
-val input-sizes = list(0,5).map(fn(i) 10.pow(i))
+val input-sizes = list(0,4).map(fn(i) 10.pow(i))
 val implementations = [ArrayBacked, HAMT]
 val seeds = list(0,4)
 
@@ -110,9 +110,53 @@ fun measure-mem-footprints()
 //==============================================================================
 
 fun benchmark-implementations()
-  println("Benchmarking insertion...")
+  val num-to-test = 8
 
-  val num-to-insert = 8
+  println("Benchmarking lookup...")
+
+  val lookup-tbl = Table([10, 13, 8])
+  lookup-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size).shuffle(seed)
+        val to-lookup = inputs.shuffle(seed).take(num-to-test)
+
+        match impl
+          ArrayBacked ->
+           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-lookup.map(fn(v) m.lookup(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+
+          HAMT ->
+           val mi = create-map(hashInt, keyCmpInt)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-lookup.map(fn(v) m.lookup(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    lookup-tbl.print([size.show] ++ impl-times)
+  )
+  println("")
+
+  println("Benchmarking insert...")
 
   val insert-tbl = Table([10, 13, 8])
   insert-tbl.print(["Num items"] ++ implementations.map(string))
@@ -122,7 +166,7 @@ fun benchmark-implementations()
       var time-sum := 0
 
       seeds.map(fn(seed)
-        val inputs = list(1,size + num-to-insert).shuffle(seed)
+        val inputs = list(1,size + num-to-test).shuffle(seed)
         val initial-vals = inputs.take(size)
         val to-insert = inputs.drop(size)
 
@@ -154,6 +198,139 @@ fun benchmark-implementations()
     )
 
     insert-tbl.print([size.show] ++ impl-times)
+  )
+  println("")
+
+  println("Benchmarking delete...")
+
+  val delete-tbl = Table([10, 13, 8])
+  delete-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size).shuffle(seed)
+        val to-delete = inputs.shuffle(seed).take(num-to-test)
+
+        match impl
+          ArrayBacked ->
+           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-delete.map(fn(v) m.delete(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+
+          HAMT ->
+           val mi = create-map(hashInt, keyCmpInt)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-delete.map(fn(v) m.delete(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    delete-tbl.print([size.show] ++ impl-times)
+  )
+  println("")
+
+  println("Benchmarking lookup (fail)...")
+
+  val lookup-fail-tbl = Table([10, 13, 8])
+  lookup-fail-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size + num-to-test).shuffle(seed)
+        val initial-vals = inputs.take(size)
+        val to-lookup-fail = inputs.drop(size)
+
+        match impl
+          ArrayBacked ->
+           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-lookup-fail.map(fn(v) m.lookup(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+
+          HAMT ->
+           val mi = create-map(hashInt, keyCmpInt)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           val res = to-lookup-fail.map(fn(v) m.lookup(v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    lookup-fail-tbl.print([size.show] ++ impl-times)
+  )
+  println("")
+
+  println("Benchmarking update...")
+
+  val update-tbl = Table([10, 13, 8])
+  update-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size).shuffle(seed)
+        val to-update = inputs.shuffle(seed).take(num-to-test)
+
+        match impl
+          ArrayBacked ->
+           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           to-update.foldl(m, fn(mx,v) mx.insert(v,v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+
+          HAMT ->
+           val mi = create-map(hashInt, keyCmpInt)
+           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           to-update.foldl(m, fn(mx,v) mx.insert(v,v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    update-tbl.print([size.show] ++ impl-times)
   )
 
   ()
