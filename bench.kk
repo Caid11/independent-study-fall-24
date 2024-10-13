@@ -2,10 +2,32 @@
   Performance benchmarks for map implementations
 -----------------------------------------------------------------------------*/
 
+module bench
+
 import lib/map/arrayBacked
 import lib/map/hamtBacked
 import lib/util/bench
+import lib/util/misc
+
 import std/num/random
+import std/num/ddouble
+import std/os/process
+import std/text/regex
+import std/time/duration
+import std/time/timer
+
+type implementation
+  ArrayBacked
+  HAMT
+
+fun string(x : implementation)
+  match x
+    ArrayBacked -> "ArrayBacked"
+    HAMT -> "HAMT"
+
+val input-sizes = list(0,5).map(fn(i) 10.pow(i))
+val implementations = [ArrayBacked, HAMT]
+val seeds = list(0,4)
 
 fun hashInt(x: int) : int
   x
@@ -13,30 +35,132 @@ fun hashInt(x: int) : int
 fun keyCmpInt(x : int, y : int) : bool
   x == y
 
-fun get-bench-inputs(input-size : int) : _e list<int>
-  list(0, input-size).map(fn(_) random-int())
+// Table printing
+//==============================================================================
+
+struct table
+  col-widths : list<int>
+
+fun fmt-col(msg : string, column-width : int)
+  val num-pad-chars = column-width - msg.count
+  val pad-chars = list(1, num-pad-chars).map(fn(_) ' ').string
+  msg ++ pad-chars ++ "| "
+
+fun print(tbl : table, vals : list<string>)
+  if tbl.col-widths.length != vals.length then
+    throw("Bad number of values")
+  else
+    val msg = vals.zip(tbl.col-widths).map(fn((v,w)) fmt-col(v,w)).join()
+    println(msg)
+
+// Memory footprint measurements (also see mem-bench.kk)
+//==============================================================================
+
+// Ensure mem-bench.kk is built and return its path.
+fun build-mem-bench()
+  // Ensure memory bench exe is built and get path.
+  val build-output = match run-system-read("koka bench-mem.kk")
+    Ok(res) -> res
+    Error(err) -> throw(err.message)
+
+  val rx-exe-path = regex(r"^created : (\S+)", multiline=True)
+  val m = match build-output.find(rx-exe-path)
+    Nothing -> throw("unable to parse mem-bench build output")
+    Just(c) -> c
+
+  m.replace-all("created : ", "")
+
+fun measure-mem-footprint(exe-path : string, impl : string, seed : int, size : int) : io int
+  val cmd = exe-path ++ " " ++ impl ++ " " ++ seed.show ++ " " ++ size.show
+  val cmd-output = match run-system-read(cmd)
+    Ok(o) -> o
+    Error(e) -> throw(e.message())
+
+  match cmd-output.replace-all("\n", "").parse-int
+    Nothing -> throw("unable to parse bench-mem output: [" ++ cmd-output ++ "]")
+    Just(i) -> i
+
+fun measure-mem-footprints()
+  val exe-path = build-mem-bench()
+
+  println("Memory footprint (bytes)")
+
+  val impls = implementations.map(fn(i) i.string)
+
+  val mem-tbl = Table([10, 13, 8])
+  mem-tbl.print(["Num items"] ++ impls)
+
+  input-sizes.map(fn(size)
+    val to-print = impls.map(fn(impl)
+      var footprint-sum := 0
+      seeds.map(fn(seed)
+        val footprint = measure-mem-footprint(exe-path, impl, seed, size)
+        footprint-sum := footprint-sum + footprint
+      )
+
+      (footprint-sum / seeds.length).show
+    )
+
+    mem-tbl.print([size.show] ++ to-print)
+  )
+
+  ()
+
+// Operation runtime benchmarking
+//==============================================================================
+
+fun benchmark-implementations()
+  println("Benchmarking insertion...")
+
+  val num-to-insert = 8
+
+  val insert-tbl = Table([10, 13, 8])
+  insert-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size + num-to-insert).shuffle(seed)
+        val initial-vals = inputs.take(size)
+        val to-insert = inputs.drop(size)
+
+        match impl
+          ArrayBacked ->
+           val mi = create-map(hashInt, keyCmpInt, 0, 0, initial-vals.length)
+           val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+
+          HAMT ->
+           val mi = create-map(hashInt, keyCmpInt)
+           val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
+
+           val begin = ticks().nano-seconds()
+
+           to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
+
+           val elapsed = ticks().nano-seconds - begin
+           time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    insert-tbl.print([size.show] ++ impl-times)
+  )
+
+  ()
 
 fun main()
-  println("Generating inputs...")
-  val input-sizes = list(1, 4).map(fn(i) pow(10, i)).list/vector
-  val bench-inputs = input-sizes.map(get-bench-inputs)
+  measure-mem-footprints()
+  println("")
+  benchmark-implementations()
 
-  fun bench-func-array-backed(idx)
-    val mi = create-map(hashInt, keyCmpInt, 0, 0, input-sizes[idx] * 2)
-    bench-inputs[idx].foldl(mi, fn(m, i) m.insert(i, i))
-    ()
-
-  println("Benchmarking array backed...")
-
-  bench(bench-func-array-backed, input-sizes, 0, 1)
-
-  fun bench-func-hamt-backed(idx : int)
-    val mi = create-map(hashInt, keyCmpInt, 0)
-    bench-inputs[idx].foldl(mi, fn(m, i) m.insert(i, i))
-    ()
-
-  println("Benchmarking hamt backed...")
-
-  bench(bench-func-hamt-backed, input-sizes, 0, 1)
-
-  println("Finished!")
+  ()

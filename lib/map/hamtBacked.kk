@@ -5,7 +5,7 @@
   https://hackage.haskell.org/package/containers-0.5.10.2/docs/Data-Map-Strict.html
 -----------------------------------------------------------------------------*/
 
-module map/hamtBacked
+module lib/map/hamtBacked
 
 import std/num/int32
 
@@ -31,15 +31,13 @@ type hamtNode<v>
 pub struct hamtBackedMap<k,v>
   hashFunc : k -> int
   keyCmp : (k,k) -> bool
-  default-val : v
   root : hamtNode<v>
 
 // Create a new map
-pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, default-value : v) : hamtBackedMap<k,v>
+pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<k,v>
   HamtBackedMap(
     hashFunc,
     keyCmp,
-    default-value,
     Null
   )
 

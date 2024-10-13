@@ -5,9 +5,13 @@
   https://hackage.haskell.org/package/containers-0.5.10.2/docs/Data-Map-Strict.html
 -----------------------------------------------------------------------------*/
 
-module map/arrayBacked
+module lib/map/arrayBacked
 
 import std/num/int64
+
+// TODO: Instead of storing separate bitvector, use maybe type?
+
+// TODO: Add an option to disable resizing
 
 pub struct arrayBackedMap<k,v>
   hashFunc : k -> int

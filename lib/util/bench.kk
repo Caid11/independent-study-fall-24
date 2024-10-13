@@ -4,8 +4,8 @@
 
 module lib/util/bench
 
-import std/time/duration
 import std/time/timer
+import std/time/duration
 
 // Benchmark the target function and write a CSV file with the results.
 //
