@@ -24,7 +24,7 @@ val tests = [
       Test(
         "array-insert-lookup",
         fn()
-          val m = create-map( hash-func, keyCmp, 0, "" ).insert( 1, "hello" )
+          val m = arrayBacked/create-map( hash-func, keyCmp ).insert( 1, "hello" )
           match m.lookup( 1 )
             Just("hello") -> ()
             _ -> test-fail( "bad value found" )
@@ -33,7 +33,7 @@ val tests = [
       Test(
         "array-insert-lookup-force-resize",
         fn()
-          val m = create-map( hash-func, keyCmp, 0, "", 0 ).insert( 1, "hello" )
+          val m = arrayBacked/create-map( hash-func, keyCmp, 0 ).insert( 1, "hello" )
           match m.lookup( 1 )
             Just("hello") -> ()
             _ -> test-fail( "bad value found" )
@@ -42,7 +42,7 @@ val tests = [
       Test(
         "array-insert-lookup-update",
         fn()
-          val mi = create-map( hash-func, keyCmp, 0, "" )
+          val mi = arrayBacked/create-map( hash-func, keyCmp )
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.insert( 1, "bar" )
 
@@ -61,7 +61,7 @@ val tests = [
       Test(
         "array-insert-delete",
         fn()
-          val mi = create-map( hash-func, keyCmp, 0, "" )
+          val mi = arrayBacked/create-map( hash-func, keyCmp )
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.delete( 1 )
 
@@ -84,7 +84,7 @@ val tests = [
       Test(
         "hamt-insert-lookup",
         fn()
-          val m = create-map( hash-func, keyCmp ).insert( 1, "hello" )
+          val m = hamtBacked/create-map( hash-func, keyCmp ).insert( 1, "hello" )
           match m.lookup( 1 )
             Just("hello") -> ()
             _ -> test-fail( "bad value found" )
@@ -93,7 +93,7 @@ val tests = [
       Test(
         "hamt-insert-lookup-update",
         fn()
-          val mi = create-map( hash-func, keyCmp )
+          val mi = hamtBacked/create-map( hash-func, keyCmp )
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.insert( 1, "bar" )
 
@@ -113,7 +113,7 @@ val tests = [
       Test(
         "hamt-insert-delete",
         fn()
-          val mi = create-map( hash-func, keyCmp )
+          val mi = hamtBacked/create-map( hash-func, keyCmp )
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.delete( 1 )
 

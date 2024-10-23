@@ -13,39 +13,32 @@ import std/num/int64
 
 // TODO: Add an option to disable resizing
 
+type mapMember<k,v>
+  Unoccupied
+  Occupied(key: k, value: v)
+
 pub struct arrayBackedMap<k,v>
   hashFunc : k -> int
   keyCmp : (k,k) -> bool
-  default-key : k
-  default-val : v
-  occupied : vector<bool>
-  keys : vector<k>
-  members : vector<v>
+  members: vector<mapMember<k,v>>
 
 // Create a new map
-pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, default-key : k, default-value : v, initial-capacity : int = 32) : arrayBackedMap<k,v>
+pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, initial-capacity : int = 32) : arrayBackedMap<k,v>
   ArrayBackedMap(
     hashFunc,
     keyCmp,
-    default-key,
-    default-value,
-    vector/vector(initial-capacity, False),
-    vector/vector(initial-capacity, default-key),
-    vector/vector(initial-capacity, default-value)
+    vector/vector(initial-capacity, Unoccupied)
   )
 
 fun resize(m : arrayBackedMap<k,v>) : <div,exn> arrayBackedMap<k,v>
-  val new-capacity = max(32, m.occupied.length * 2)
-  val new-m = m(
-    occupied = vector(new-capacity, False),
-    keys = vector(new-capacity, m.default-key),
-    members = vector(new-capacity, m.default-val)
-  )
+  val new-capacity = max(32, m.members.length * 2)
+  val new-m = create-map(m.hashFunc, m.keyCmp, new-capacity)
 
-  zip(m.occupied.list, m.keys.list)
-    .zip(m.members.list)
-    .filter(fn(((o,_),_)) o != False)
-    .foldl(new-m, fn(im, ((_,k),v)) im.insert(k, v))
+  m.members.vlist.foldl(new-m, fn(m-curr, member)
+    match member
+      Unoccupied -> m-curr
+      Occupied(key, value) -> m-curr.insert(key, value)
+  )
 
 // Basic operations
 
@@ -53,16 +46,19 @@ fun find-unoccupied-slot(m : arrayBackedMap<k,v>, start-idx : int, key : k) : <d
   val cmp-key = m.keyCmp
 
   fun find-slot(idx)
-    if idx >= m.occupied.length then -1 // TODO: We should wrap
+    if idx >= m.members.length then -1 // TODO: We should wrap
     else
-      if (m.occupied[idx] == False || cmp-key(key, m.keys[idx])) then idx
-      else find-slot(idx + 1)
+      match m.members[idx]
+        Unoccupied -> idx
+        Occupied(member-key, _) ->
+          if cmp-key(key, member-key) then idx
+          else find-slot(idx + 1)
 
   find-slot(start-idx)
 
 pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedMap<k,v>
   val hash-func = m.hashFunc
-  val hash-idx = hash-func(key) % m.occupied.length
+  val hash-idx = hash-func(key) % m.members.length
 
   val slot = find-unoccupied-slot(m, hash-idx, key)
   val (insert-idx, resized-m) = if slot >= 0 then (slot, m) 
@@ -71,75 +67,59 @@ pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedM
       val idx = resized.find-unoccupied-slot(hash-idx, key)
       (idx, resized)
 
-  val updated-occupied = vector-init(resized-m.occupied.length, fn(i)
-    if i == insert-idx then True
-    else resized-m.occupied[i]
-  )
-
-  val updated-keys = vector-init(resized-m.keys.length, fn(i)
-    if i == insert-idx then key
-    else  resized-m.keys[i]
-  )
-
   val updated-members = vector-init(resized-m.members.length, fn(i)
-    if i == insert-idx then x
+    if i == insert-idx then Occupied(key, x)
     else resized-m.members[i]
   )
 
-  resized-m(occupied = updated-occupied, keys = updated-keys, members = updated-members)
+  resized-m(members = updated-members)
 
 pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
   val hash-func = m.hashFunc
-  val hash-idx = hash-func(key) % m.occupied.length
+  val hash-idx = hash-func(key) % m.members.length
 
   val k-cmp = m.keyCmp
 
+  // TODO: This will need to wrap when we fix resize idx bug
   fun lookup-at(i : int)
-    if i >= m.occupied.length || m.occupied[i] == False then Nothing
+    if i >= m.members.length then Nothing
     else
-      if k-cmp(m.keys[i], key) then Just(m.members[i])
-      else lookup-at(i + 1)
+      match m.members[i]
+        Unoccupied -> Nothing
+        Occupied(member-key, value) ->
+          if k-cmp(key, member-key) then Just(value)
+          else lookup-at( i + 1)
           
   lookup-at(hash-idx)
   
 // TODO: What if key isn't present in map?
 pub fun delete(m : arrayBackedMap<k,v>, key : k) : <exn,div> arrayBackedMap<k,v>
   val hash-func = m.hashFunc
-  val hash-idx = hash-func(key) % m.occupied.length
+  val hash-idx = hash-func(key) % m.members.length
 
   val k-cmp = m.keyCmp
 
+  // TODO: Factor out to something like find?
   fun lookup-at(i : int)
-    if i >= m.occupied.length || m.occupied[i] == False then Nothing
+    if i >= m.members.length then Nothing
     else
-      if k-cmp(m.keys[i], key) then Just(i)
-      else lookup-at(i + 1)
-
+      match m.members[i]
+        Unoccupied -> Nothing
+        Occupied(member-key, _) ->
+          if k-cmp(key, member-key) then Just(i)
+          else lookup-at( i + 1)
+ 
   val remove-idx-maybe = lookup-at(hash-idx)
   match remove-idx-maybe
     Nothing -> m // TODO: Throw exn here?
     Just(idx) ->
-      fun get-new-key(i)
-        if i == idx then m.default-key
-        else m.keys[i]
-
-      fun get-new-occupied(i)
-        if i == idx then False
-        else m.occupied[i]
-
       fun get-new-member(i)
-        if i == idx then m.default-val
+        if i == idx then Unoccupied
         else m.members[i]
 
-      val new-occupied = vector-init(m.occupied.length, get-new-occupied)
-      val new-keys = vector-init(m.keys.length, get-new-key)
       val new-members = vector-init(m.members.length, get-new-member)
 
-      m(
-        occupied = new-occupied,
-        keys = new-keys,
-        members = new-members
-      )
+      m( members = new-members)
  
 
 // Traversal operations
@@ -155,7 +135,9 @@ fun eval-if-present( f : v -> a, x : maybe<v> ) : maybe<a>
       val new = f(xv)
       Just(new)
 
-// pub fun map(m : arrayBackedMap<k,v>, f : v -> a) : arrayBackedMap<k,a>
+// pub fun traverse(m : arrayBackedMap<k,v>, f : v -> a, default-value: a) : arrayBackedMap<k,a>
+//   fun eval
+//   val new-members = m.members.map(f)
 //   m
 
 // pub fun map-with-key(m : arrayBackedMap<k,v>, f : (k, v) -> a) : arrayBackedMap<k,a>
