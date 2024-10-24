@@ -8,8 +8,7 @@
 
 module bench-mem
 
-import lib/map/arrayBacked
-import lib/map/hamtBacked
+import lib/map/map
 import lib/util/misc
 import lib/util/sort
 
@@ -20,7 +19,7 @@ import std/os/env
 
 type implementation
   ArrayBacked
-  HAMT
+  HamtBacked
 
 struct args
   implementation : implementation
@@ -44,7 +43,7 @@ fun parse-args()
     val implementation = match args[0]
       Just(s) -> match s
         "ArrayBacked" -> ArrayBacked
-        "HAMT" -> HAMT
+        "HAMT" -> HamtBacked
         _ -> show-help()
       _ -> show-help()
 
@@ -83,15 +82,10 @@ fun main()
 
   val inputs = list(0, args.num-inputs - 1).shuffle(args.seed)
 
-  match args.implementation
-    ArrayBacked ->
-      val mi = create-map(hashInt, keyCmpInt, 0, 0, args.num-inputs)
-      inputs.foldl(mi, fn(m, x) m.insert(x, x))
-      ()
-      
-    HAMT ->
-      val mi = create-map(hashInt, keyCmpInt)
-      inputs.foldl(mi, fn(m, x) m.insert(x, x))
-      ()
+  val mi = match args.implementation
+    ArrayBacked -> create-array-backed(hashInt, keyCmpInt, args.num-inputs, False)
+    HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
+
+  inputs.foldl(mi, fn(m, x) m.insert(x, x))
 
   println(get-peak-mem-usage())

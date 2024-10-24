@@ -87,7 +87,6 @@ pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
 
   val k-cmp = m.keyCmp
 
-  // TODO: This will need to wrap when we fix resize idx bug
   fun lookup-at(offset : int)
     if offset >= m.members.length then Nothing
     else

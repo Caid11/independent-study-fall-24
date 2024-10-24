@@ -6,6 +6,7 @@ module bench
 
 import lib/map/arrayBacked
 import lib/map/hamtBacked
+import lib/map/map
 import lib/util/bench
 import lib/util/misc
 
@@ -18,15 +19,15 @@ import std/time/timer
 
 type implementation
   ArrayBacked
-  HAMT
+  HamtBacked
 
 fun string(x : implementation)
   match x
     ArrayBacked -> "ArrayBacked"
-    HAMT -> "HAMT"
+    HamtBacked -> "HAMT"
 
-val input-sizes = list(0,5).map(fn(i) 10.pow(i))
-val implementations = [ArrayBacked, HAMT]
+val input-sizes = list(0,6).map(fn(i) 10.pow(i))
+val implementations = [ArrayBacked, HamtBacked]
 val seeds = list(0,4)
 
 fun hashInt(x: int) : int
@@ -124,29 +125,19 @@ fun benchmark-implementations()
       seeds.map(fn(seed)
         val inputs = list(1,size)
         val to-lookup = inputs.shuffle(seed).take(num-to-test)
+        
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
 
-        match impl
-          ArrayBacked ->
-            val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
-            val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
 
-            val begin = ticks().nano-seconds()
+        val begin = ticks().nano-seconds()
 
-            val res = to-lookup.map(fn(v) m.lookup(v))
+        val res = to-lookup.map(fn(v) m.lookup(v))
 
-            val elapsed = ticks().nano-seconds - begin
-            time-sum := time-sum + elapsed
-
-          HAMT ->
-            val mi = create-map(hashInt, keyCmpInt)
-            val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-
-            val begin = ticks().nano-seconds()
-
-            val res = to-lookup.map(fn(v) m.lookup(v))
-
-            val elapsed = ticks().nano-seconds - begin
-            time-sum := time-sum + elapsed
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
@@ -170,28 +161,18 @@ fun benchmark-implementations()
         val initial-vals = inputs.take(size)
         val to-insert = inputs.drop(size)
 
-        match impl
-          ArrayBacked ->
-           val mi = create-map(hashInt, keyCmpInt, 0, 0, initial-vals.length)
-           val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
 
-           val begin = ticks().nano-seconds()
+        val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
 
-           to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
+        val begin = ticks().nano-seconds()
 
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
 
-          HAMT ->
-           val mi = create-map(hashInt, keyCmpInt)
-           val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
-
-           val begin = ticks().nano-seconds()
-
-           to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
-
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
@@ -214,28 +195,18 @@ fun benchmark-implementations()
         val inputs = list(1,size).shuffle(seed)
         val to-delete = inputs.shuffle(seed).take(num-to-test)
 
-        match impl
-          ArrayBacked ->
-           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
 
-           val begin = ticks().nano-seconds()
+        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
 
-           val res = to-delete.map(fn(v) m.delete(v))
+        val begin = ticks().nano-seconds()
 
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val res = to-delete.map(fn(v) m.delete(v))
 
-          HAMT ->
-           val mi = create-map(hashInt, keyCmpInt)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-
-           val begin = ticks().nano-seconds()
-
-           val res = to-delete.map(fn(v) m.delete(v))
-
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
@@ -259,28 +230,18 @@ fun benchmark-implementations()
         val initial-vals = inputs.take(size)
         val to-lookup-fail = inputs.drop(size)
 
-        match impl
-          ArrayBacked ->
-           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
 
-           val begin = ticks().nano-seconds()
+        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
 
-           val res = to-lookup-fail.map(fn(v) m.lookup(v))
+        val begin = ticks().nano-seconds()
 
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val res = to-lookup-fail.map(fn(v) m.lookup(v))
 
-          HAMT ->
-           val mi = create-map(hashInt, keyCmpInt)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-
-           val begin = ticks().nano-seconds()
-
-           val res = to-lookup-fail.map(fn(v) m.lookup(v))
-
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
@@ -303,28 +264,18 @@ fun benchmark-implementations()
         val inputs = list(1,size).shuffle(seed)
         val to-update = inputs.shuffle(seed).take(num-to-test)
 
-        match impl
-          ArrayBacked ->
-           val mi = create-map(hashInt, keyCmpInt, 0, 0, inputs.length)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
 
-           val begin = ticks().nano-seconds()
+        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
 
-           to-update.foldl(m, fn(mx,v) mx.insert(v,v))
+        val begin = ticks().nano-seconds()
 
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        to-update.foldl(m, fn(mx,v) mx.insert(v,v))
 
-          HAMT ->
-           val mi = create-map(hashInt, keyCmpInt)
-           val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-
-           val begin = ticks().nano-seconds()
-
-           to-update.foldl(m, fn(mx,v) mx.insert(v,v))
-
-           val elapsed = ticks().nano-seconds - begin
-           time-sum := time-sum + elapsed
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
