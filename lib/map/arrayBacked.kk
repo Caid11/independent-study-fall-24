@@ -20,13 +20,18 @@ type mapMember<k,v>
 pub struct arrayBackedMap<k,v>
   hashFunc : k -> int
   keyCmp : (k,k) -> bool
+  allow-resize : bool
   members: vector<mapMember<k,v>>
 
 // Create a new map
-pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool, initial-capacity : int = 32) : arrayBackedMap<k,v>
+pub fun create-map(hashFunc : k -> int,
+                   keyCmp : (k,k) -> bool,
+                   initial-capacity : int = 32,
+                   allow-resize : bool = True) : arrayBackedMap<k,v>
   ArrayBackedMap(
     hashFunc,
     keyCmp,
+    allow-resize,
     vector/vector(initial-capacity, Unoccupied)
   )
 
@@ -45,16 +50,17 @@ fun resize(m : arrayBackedMap<k,v>) : <div,exn> arrayBackedMap<k,v>
 fun find-unoccupied-slot(m : arrayBackedMap<k,v>, start-idx : int, key : k) : <div,exn> int
   val cmp-key = m.keyCmp
 
-  fun find-slot(idx)
-    if idx >= m.members.length then -1 // TODO: We should wrap
+  fun find-slot(offset)
+    if offset >= m.members.length then -1
     else
+      val idx = (start-idx + offset) % m.members.length
       match m.members[idx]
         Unoccupied -> idx
         Occupied(member-key, _) ->
           if cmp-key(key, member-key) then idx
-          else find-slot(idx + 1)
+          else find-slot(offset + 1)
 
-  find-slot(start-idx)
+  find-slot(0)
 
 pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedMap<k,v>
   val hash-func = m.hashFunc
@@ -62,10 +68,11 @@ pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedM
 
   val slot = find-unoccupied-slot(m, hash-idx, key)
   val (insert-idx, resized-m) = if slot >= 0 then (slot, m) 
-    else
+    else if m.allow-resize then
       val resized = m.resize
       val idx = resized.find-unoccupied-slot(hash-idx, key)
       (idx, resized)
+    else throw("resized when resizing is disabled")
 
   val updated-members = vector-init(resized-m.members.length, fn(i)
     if i == insert-idx then Occupied(key, x)
@@ -81,16 +88,17 @@ pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
   val k-cmp = m.keyCmp
 
   // TODO: This will need to wrap when we fix resize idx bug
-  fun lookup-at(i : int)
-    if i >= m.members.length then Nothing
+  fun lookup-at(offset : int)
+    if offset >= m.members.length then Nothing
     else
-      match m.members[i]
+      val idx = (hash-idx + offset) % m.members.length
+      match m.members[idx]
         Unoccupied -> Nothing
         Occupied(member-key, value) ->
           if k-cmp(key, member-key) then Just(value)
-          else lookup-at( i + 1)
+          else lookup-at( offset + 1)
           
-  lookup-at(hash-idx)
+  lookup-at(0)
   
 // TODO: What if key isn't present in map?
 pub fun delete(m : arrayBackedMap<k,v>, key : k) : <exn,div> arrayBackedMap<k,v>

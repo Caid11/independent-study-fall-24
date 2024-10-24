@@ -17,6 +17,30 @@ fun hash-func(x : int) : int
 fun keyCmp(x : int, y : int) : bool
   x == y
 
+fun arrayBackedMap/assert-lookup-returns(m : arrayBackedMap<int,string>, k : int, v : string)
+   match m.lookup( k )
+    Just(str) ->
+      if str == v then ()
+      else test-fail( "bad value found: " ++ str )
+    Nothing -> test-fail("key not found")
+
+fun arrayBackedMap/assert-lookup-key-not-found(m : arrayBackedMap<int,string>, k : int)
+   match m.lookup( k )
+    Just(str) -> test-fail( "value found when key not expected: " ++ str )
+    Nothing -> ()
+
+fun hamtBackedMap/assert-lookup-returns(m : hamtBackedMap<int,string>, k : int, v : string)
+   match m.lookup( k )
+    Just(str) ->
+      if str == v then ()
+      else test-fail( "bad value found: " ++ str )
+    Nothing -> test-fail("key not found")
+
+fun hamtBackedMap/assert-lookup-key-not-found(m : hamtBackedMap<int,string>, k : int)
+   match m.lookup( k )
+    Just(str) -> test-fail( "value found when key not expected: " ++ str )
+    Nothing -> ()
+
 val tests = [
   Case(
     "array-backed",
@@ -25,18 +49,23 @@ val tests = [
         "array-insert-lookup",
         fn()
           val m = arrayBacked/create-map( hash-func, keyCmp ).insert( 1, "hello" )
-          match m.lookup( 1 )
-            Just("hello") -> ()
-            _ -> test-fail( "bad value found" )
+          m.assert-lookup-returns(1, "hello")
       ),
 
       Test(
         "array-insert-lookup-force-resize",
         fn()
           val m = arrayBacked/create-map( hash-func, keyCmp, 0 ).insert( 1, "hello" )
-          match m.lookup( 1 )
-            Just("hello") -> ()
-            _ -> test-fail( "bad value found" )
+          m.assert-lookup-returns(1, "hello")
+      ),
+
+      Test(
+        "array-insert-lookup-insert-idx-wraps",
+        fn()
+          val m = arrayBacked/create-map( hash-func, keyCmp, 2, allow-resize = False)
+            .insert( 1, "foo" )
+            .insert( 3, "bar" )
+          m.assert-lookup-returns(3, "bar")
       ),
 
       Test(
@@ -46,16 +75,8 @@ val tests = [
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.insert( 1, "bar" )
 
-          match m1.lookup( 1 )
-            Just(x) ->
-              if x == "foo" then ()
-              else test-fail( "bad value found m1: " ++ x)
-            _ -> test-fail( "bad value found m1" )
-
-          match m2.lookup( 1 )
-            Just("bar") -> ()
-            Just(x) -> test-fail( "bad value found m2: " ++ x)
-            _ -> test-fail( "bad value found m2" )
+          m1.assert-lookup-returns(1, "foo")
+          m2.assert-lookup-returns(1, "bar")
       ),
 
       Test(
@@ -65,15 +86,9 @@ val tests = [
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.delete( 1 )
 
-          match m1.lookup( 1 )
-            Just(x) ->
-              if x == "foo" then ()
-              else test-fail( "bad value found m1: " ++ x)
-            _ -> test-fail( "bad value found m1" )
 
-          match m2.lookup( 1 )
-            Just(x) -> test-fail( "bad value found m2: " ++ x)
-            Nothing -> ()
+          m1.assert-lookup-returns(1, "foo")
+          m2.assert-lookup-key-not-found(1)
       ),
     ]
   ),
@@ -97,17 +112,8 @@ val tests = [
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.insert( 1, "bar" )
 
-          match m1.lookup( 1 )
-            Just(x) ->
-              if x == "foo" then ()
-              else test-fail( "bad value found m1: " ++ x)
-            _ -> test-fail( "bad value found m1" )
-
-          match m2.lookup( 1 )
-            Just(x) ->
-              if x == "bar" then ()
-              else test-fail( "bad value found m2: " ++ x)
-            _ -> test-fail( "bad value found m2" )
+          m1.assert-lookup-returns(1, "foo")
+          m2.assert-lookup-returns(1, "bar")
       ),
 
       Test(
@@ -117,15 +123,8 @@ val tests = [
           val m1 = mi.insert( 1, "foo" )
           val m2 = m1.delete( 1 )
 
-          match m1.lookup( 1 )
-            Just(x) ->
-              if x == "foo" then ()
-              else test-fail( "bad value found m1: " ++ x)
-            _ -> test-fail( "bad value found m1" )
-
-          match m2.lookup( 1 )
-            Just(x) -> test-fail( "bad value found m2: " ++ x)
-            Nothing -> ()
+          m1.assert-lookup-returns(1, "foo")
+          m2.assert-lookup-key-not-found(1)
       ),
     ]
   )
