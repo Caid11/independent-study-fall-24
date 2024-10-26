@@ -41,6 +41,15 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<
     Null
   )
 
+fun hamtNode/count(n : hamtNode<v>) : div int
+  match n
+    Null -> 0
+    Leaf -> 1
+    Array(a) -> a.children.map(count).vlist.sum
+
+pub fun count(m : hamtBackedMap<k,v>) : div int
+  m.root.hamtNode/count()
+
 // Basic operations
 
 fun calc-idx(hash : int32, shift-width : int) : int

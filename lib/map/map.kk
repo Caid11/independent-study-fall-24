@@ -16,6 +16,11 @@ pub fun create-array-backed(hashFunc : k -> int,
 pub fun create-hamt-backed(hashFunc : k -> int, keyCmp : (k,k) -> bool) : map<k,v>
   Hamt(hamtBacked/create-map(hashFunc, keyCmp))
 
+pub fun count(m : map<k,v>) : <div,exn> int
+  match m
+    Array(ma) -> ma.arrayBacked/count()
+    Hamt(mh) -> mh.count()
+
 pub fun insert(m : map<k,v>, key : k, x : v) : <div,exn> map<k,v>
   match m
     Array(ma) -> Array(ma.insert(key, x))
@@ -30,3 +35,9 @@ pub fun delete(m : map<k,v>, key : k) : <exn,div> map<k,v>
   match m
     Array(ma) -> Array(ma.delete(key))
     Hamt(mh) -> Hamt(mh.delete(key))
+
+//pub fun map-with-key(m : map<k,v>, f : ((k,v)) -> e a) : e map<k,a>
+pub fun map-with-key(m, f)
+  match m
+    Array(ma) -> Array(ma.arrayBacked/map-with-key(f))
+    //Hamt(mh) -> Hamt(mh.map-with-key(f))
