@@ -15,23 +15,24 @@ import std/num/int32
 
 val arity = 32
 
-value struct hamtLeaf<v>
+value struct hamtLeaf<k,v>
+  key : k
   hash : int32
   stored : v
 
-struct hamtArray<v>
+struct hamtArray<k,v>
   bitmap : int32
-  children : vector<hamtNode<v>>
+  children : vector<hamtNode<k,v>>
 
-type hamtNode<v>
-  Array(a : hamtArray<v>)
-  Leaf(l : hamtLeaf<v>)
+type hamtNode<k,v>
+  Array(a : hamtArray<k,v>)
+  Leaf(l : hamtLeaf<k,v>)
   Null
 
 pub struct hamtBackedMap<k,v>
   hashFunc : k -> int
   keyCmp : (k,k) -> bool
-  root : hamtNode<v>
+  root : hamtNode<k,v>
 
 // Create a new map
 pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<k,v>
@@ -41,7 +42,7 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<
     Null
   )
 
-fun hamtNode/count(n : hamtNode<v>) : div int
+fun hamtNode/count(n : hamtNode<k,v>) : div int
   match n
     Null -> 0
     Leaf -> 1
@@ -67,18 +68,18 @@ fun unset(bitmask : int32, pos : int) : int32
   val i = 1.i32.shl(pos)
   i.xor(bitmask).and(bitmask)
 
-fun insert-i(n : hamtNode<v>, h : int32, shift-width : int, x : v) : <div,exn> hamtNode<v>
+fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) : <div,exn> hamtNode<k,v>
   match n
-    Null -> Leaf(HamtLeaf(h, x))
+    Null -> Leaf(HamtLeaf(key-a, h, x))
     Leaf(l) ->
-      if l.hash == h then Leaf(HamtLeaf(h, x))
+      if l.hash == h then Leaf(HamtLeaf(key-a, h, x))
       else
         val arr = Array(HamtArray(0.i32, vector/vector(arity, Null)))
-        insert-i(arr, l.hash, shift-width, l.stored)
-          .insert-i(h, shift-width, x)
+        insert-i(arr, l.hash, shift-width, l.key, l.stored)
+          .insert-i(h, shift-width, key-a, x)
     Array(a) ->
       val idx = calc-idx(h, shift-width)
-      val to-insert = insert-i(a.children[idx], h, shift-width + 5, x)
+      val to-insert = insert-i(a.children[idx], h, shift-width + 5, key-a, x)
 
       fun init-children(i)
         if i == idx then to-insert
@@ -91,10 +92,10 @@ pub fun insert(m : hamtBackedMap<k,v>, key : k, x : v) : <div,exn> hamtBackedMap
   val hash-func = m.hashFunc
   val hash = hash-func(key).int32
 
-  val new-root = insert-i(m.root, hash, 0, x)
+  val new-root = insert-i(m.root, hash, 0, key, x)
   m(root = new-root)
 
-fun lookup-i(m : hamtNode<v>, h : int32, shift-width : int) : <div,exn> maybe<v>
+fun lookup-i(m : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe<v>
   match m
     Null -> Nothing
     Leaf(l) ->
@@ -110,7 +111,7 @@ pub fun lookup(m : hamtBackedMap<k,v>, key : k) : <div,exn> maybe<v>
 
   lookup-i(m.root, hash, 0)
 
-fun delete-i(n : hamtNode<v>, h : int32, shift-width : int) : <div,exn> hamtNode<v>
+fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNode<k,v>
   match n
     Null -> Null
     Leaf(l) ->
@@ -156,8 +157,17 @@ fun eval-if-present( f : v -> a, x : maybe<v> ) : maybe<a>
 // pub fun map(m : hamtBackedMap<k,v>, f : v -> a) : hamtBackedMap<k,a>
 //   m
 
-// pub fun map-with-key(m : hamtBackedMap<k,v>, f : (k, v) -> a) : hamtBackedMap<k,a>
-//   create-map(m.hashFunc)
+//fun hamtNode/map-with-key(n : hamtNode<k,v>, f : (k, v) -> e a) : <div|e> hamtNode<k,a>
+fun map-with-key-node(n, f)
+  match n
+    Null -> Null
+    Leaf(l) -> Leaf(HamtLeaf(l.key, l.hash, f(l.key, l.stored)))
+    Array(a) ->
+      val new-children = a.children.map(fn(c) map-with-key-node(c,f))
+      Array(HamtArray(a.bitmap, new-children))
+
+pub fun map-with-key(m, f)
+  HamtBackedMap(m.hashFunc, m.keyCmp, map-with-key-node(m.root, f))
 
 pub fun filter(m : hamtBackedMap<k,v>, f : v -> bool) : hamtBackedMap<k,v>
   m

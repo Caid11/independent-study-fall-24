@@ -40,4 +40,4 @@ pub fun delete(m : map<k,v>, key : k) : <exn,div> map<k,v>
 pub fun map-with-key(m, f)
   match m
     Array(ma) -> Array(ma.arrayBacked/map-with-key(f))
-    //Hamt(mh) -> Hamt(mh.map-with-key(f))
+    Hamt(mh) -> Hamt(mh.hamtBacked/map-with-key(f))

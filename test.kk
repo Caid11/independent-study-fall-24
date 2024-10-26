@@ -134,6 +134,24 @@ val tests = [
           m1.assert-lookup-returns(1, "foo")
           m2.assert-lookup-key-not-found(1)
       ),
+
+      Test(
+        "hamt-map",
+        fn()
+          val inputs = list(1,10).zip(list(11,20).map(show))
+          val m = inputs.foldl(
+            create-hamt-backed( hash-func, keyCmp ),
+            fn(curr-m, (k,v)) curr-m.insert(k, v)
+          )
+
+          val result = m.map/map-with-key(fn(k,x) x)
+
+          if result.count != inputs.length then
+            test-fail("result map has bad number of values: " ++ result.count.show)
+          else
+            inputs.map(fn((k,v)) result.assert-lookup-returns(k,v))
+            ()
+      ),
     ]
   )
 ]

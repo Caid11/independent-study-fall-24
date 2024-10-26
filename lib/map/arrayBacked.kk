@@ -150,17 +150,13 @@ fun eval-if-present( f : v -> a, x : maybe<v> ) : maybe<a>
 //   val new-members = m.members.map(f)
 //   m
 
-fun map-with-key-dumb(mems : list<mapMember<k,v>>, f : (k,v) -> e a) : e list<mapMember<k,a>>
-  match mems
-    Cons(x,xx) ->
-      match x
-        Unoccupied -> Cons(Unoccupied, map-with-key-dumb(xx, f))
-        Occupied(ka, va) -> Cons(Occupied(ka, f(ka, va)), map-with-key-dumb(xx,f))
-    Nil -> Nil
-
 pub fun map-with-key(m: arrayBackedMap<k,v>, f : (k,v) -> e a) : e arrayBackedMap<k,a>
-  val new-mems = m.members.vlist.map-with-key-dumb(f)
-  ArrayBackedMap(m.hashFunc, m.keyCmp, m.allow-resize, new-mems.vector)
+  val new-mems = m.members.map(fn(mem)
+    match mem
+      Unoccupied -> Unoccupied
+      Occupied(ka,va) -> Occupied(ka, f(ka,va))
+  )
+  ArrayBackedMap(m.hashFunc, m.keyCmp, m.allow-resize, new-mems)
 
 pub fun filter(m : arrayBackedMap<k,v>, f : v -> bool) : arrayBackedMap<k,v>
   m
