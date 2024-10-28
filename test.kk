@@ -98,6 +98,89 @@ val tests = [
             inputs.map(fn((k,v)) result.assert-lookup-returns(k,v))
             ()
       ),
+
+      Test(
+        "array-equals-empty",
+        fn()
+          val m1 = create-array-backed( hash-func, keyCmp )
+          val m2 = create-array-backed( hash-func, keyCmp )
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "array-equals-one-empty-one-with-value",
+        fn()
+          val m1 = create-array-backed( hash-func, keyCmp )
+          val m2 = create-array-backed( hash-func, keyCmp ).insert(1,1)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "array-equals-insert-delete-values",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, to-delete-v) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k).insert(to-delete-k, to-delete-v)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "array-equals-same-values-inserted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val m2 = inputs.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "array-equals-value-deleted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, _) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "array-equals-diff-values-inserted",
+        fn()
+          val inputs-m1 = list(1,10).zip(list(11,20))
+          val m1 = inputs-m1.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val inputs-m2 = list(21,30).zip(list(31,40))
+          val m2 = inputs-m2.foldl(create-array-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
     ]
   ),
 
@@ -152,6 +235,90 @@ val tests = [
             inputs.map(fn((k,v)) result.assert-lookup-returns(k,v))
             ()
       ),
+
+      Test(
+        "hamt-equals-empty",
+        fn()
+          val m1 = create-hamt-backed( hash-func, keyCmp )
+          val m2 = create-hamt-backed( hash-func, keyCmp )
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "hamt-equals-one-empty-one-with-value",
+        fn()
+          val m1 = create-hamt-backed( hash-func, keyCmp )
+          val m2 = create-hamt-backed( hash-func, keyCmp ).insert(1,1)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "hamt-equals-insert-delete-values",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, to-delete-v) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k).insert(to-delete-k, to-delete-v)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "hamt-equals-same-values-inserted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val m2 = inputs.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "hamt-equals-value-deleted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, _) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "hamt-equals-diff-values-inserted",
+        fn()
+          val inputs-m1 = list(1,10).zip(list(11,20))
+          val m1 = inputs-m1.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val inputs-m2 = list(21,30).zip(list(31,40))
+          val m2 = inputs-m2.foldl(create-hamt-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
     ]
   )
 ]

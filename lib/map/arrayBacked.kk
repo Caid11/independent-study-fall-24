@@ -158,6 +158,23 @@ pub fun map-with-key(m: arrayBackedMap<k,v>, f : (k,v) -> e a) : e arrayBackedMa
   )
   ArrayBackedMap(m.hashFunc, m.keyCmp, m.allow-resize, new-mems)
 
+pub fun equals(m1 : arrayBackedMap<k,v>, m2 : arrayBackedMap<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
+  val num-occupied-m1 = m1.members.map(fn(m) if m.is-occupied then 1 else 0).vlist.sum()
+  val num-occupied-m2 = m2.members.map(fn(m) if m.is-occupied then 1 else 0).vlist.sum()
+  if num-occupied-m1 != num-occupied-m2 then False
+  else
+    val mems-match = m1.members.foreach-while(fn(member-m1)
+      match member-m1
+        Unoccupied -> Nothing
+        Occupied(key, mem) ->
+          match m2.lookup(key) 
+            Nothing -> Just(True)
+            Just(mem-m2) ->
+              if mem.cmp(mem-m2) then Nothing
+              else Just(True)
+    )
+    mems-match.is-nothing
+
 pub fun filter(m : arrayBackedMap<k,v>, f : v -> bool) : arrayBackedMap<k,v>
   m
 

@@ -11,6 +11,9 @@ import std/time/timer
 pub effect test-fail
   ctl test-fail(msg : string) : a
 
+pub fun assert( cond : bool, msg : string ) : test-fail ()
+  if cond == False then test-fail(msg) else ()
+
 type testResult
   Fail(msg : string)
   Success

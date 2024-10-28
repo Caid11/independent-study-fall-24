@@ -1,6 +1,8 @@
 /*-----------------------------------------------------------------------------
   HAMT backed hashmap
 
+  This version makes use of the bitmap member to 
+
   Operations based on
   https://hackage.haskell.org/package/containers-0.5.10.2/docs/Data-Map-Strict.html
 -----------------------------------------------------------------------------*/
@@ -125,7 +127,7 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
         if i == idx then to-insert
         else a.children[i]
 
-      val new-children = vector-init(32, init-children)
+      val new-children = vector-init(arity, init-children)
       val new-bitmap =
         match new-children[idx]
           Null -> a.bitmap.hamtBacked/unset(idx)
@@ -185,3 +187,28 @@ pub fun difference(m1 : hamtBackedMap<k,v>, m2 : hamtBackedMap<k,v>) : hamtBacke
 
 pub fun intersection(m1 : hamtBackedMap<k,v>, m2 : hamtBackedMap<k,v>) : hamtBackedMap<k,v>
   m1
+
+fun equals-i(n1 : hamtNode<k,v>, n2 : hamtNode<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
+  val nodes = (n1,n2)
+  match nodes
+    (Null, Null) -> True
+    (Leaf(l1), Leaf(l2)) -> l1.hash == l2.hash && cmp(l1.stored, l2.stored)
+    (Array(a1), Array(a2)) ->
+      if a1.bitmap != a2.bitmap then False
+      else
+        var children-match := True
+        a1.children.vector/foreach-indexed(fn(i, c1)
+          val c2 = a2.children[i]
+          if !equals-i(c1, c2, cmp) then
+            children-match := False
+            ()
+          else ()
+        )
+        children-match
+
+
+    _ -> False
+
+pub fun equals(m1 : hamtBackedMap<k,v>, m2 : hamtBackedMap<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
+  equals-i(m1.root, m2.root, cmp)
+  

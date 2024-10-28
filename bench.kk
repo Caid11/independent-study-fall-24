@@ -26,7 +26,7 @@ fun string(x : implementation)
     ArrayBacked -> "ArrayBacked"
     HamtBacked -> "HAMT"
 
-val input-sizes = list(0,6).map(fn(i) 10.pow(i))
+val input-sizes = list(0,0).map(fn(i) 10.pow(i))
 val implementations = [ArrayBacked, HamtBacked]
 val seeds = list(0,4)
 
@@ -283,6 +283,78 @@ fun benchmark-implementations()
 
     update-tbl.print([size.show] ++ impl-times)
   )
+
+  println("")
+
+  println("Benchmarking iteration (key + value)...")
+
+  val map-tbl = Table([10, 13, 8])
+  map-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size).shuffle(seed)
+
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
+
+        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+
+        val begin = ticks().nano-seconds()
+
+        m.map-with-key(fn(_,v) v)
+
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    map-tbl.print([size.show] ++ impl-times)
+  )
+
+  println("")
+
+  println("Benchmarking equality...")
+
+  val equal-tbl = Table([10, 13, 8])
+  equal-tbl.print(["Num items"] ++ implementations.map(string))
+
+  input-sizes.map(fn(size)
+    val impl-times = implementations.map(fn(impl)
+      var time-sum := 0
+
+      seeds.map(fn(seed)
+        val inputs = list(1,size).shuffle(seed)
+
+        val mi = match impl
+          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
+          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
+
+        val m1 = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+        val k-to-delete = inputs[0].unjust
+        val m2 = m1.delete(k-to-delete).insert(k-to-delete, k-to-delete)
+
+        val begin = ticks().nano-seconds()
+
+        m1.equals(m2, keyCmpInt)
+
+        val elapsed = ticks().nano-seconds - begin
+        time-sum := time-sum + elapsed
+      )
+
+      (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
+    )
+
+    equal-tbl.print([size.show] ++ impl-times)
+  )
+
+
 
   ()
 

@@ -41,3 +41,14 @@ pub fun map-with-key(m, f)
   match m
     Array(ma) -> Array(ma.arrayBacked/map-with-key(f))
     Hamt(mh) -> Hamt(mh.hamtBacked/map-with-key(f))
+
+pub fun equals(m1 : map<k,v>, m2 : map<k,v>, cmp : (v,v) -> bool ) : <div,exn> bool
+  match m1
+    Array(m1a) ->
+      match m2
+        Array(m2a) -> m1a.arrayBacked/equals(m2a, cmp)
+        _ -> False
+    Hamt(m1h) ->
+      match m2
+        Hamt(m2h) -> m1h.hamtBacked/equals(m2h, cmp)
+        _ -> False
