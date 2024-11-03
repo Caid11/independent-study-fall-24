@@ -12,6 +12,7 @@ import lib/util/misc
 
 import std/num/random
 import std/num/ddouble
+import std/os/env
 import std/os/process
 import std/text/regex
 import std/time/duration
@@ -26,21 +27,51 @@ fun string(x : implementation)
     ArrayBacked -> "ArrayBacked"
     HamtBacked -> "HAMT"
 
-val input-sizes = list(0,0).map(fn(i) 10.pow(i))
-val implementations = [ArrayBacked, HamtBacked]
-val seeds = list(0,4)
-
 fun hashInt(x: int) : int
   x
 
 fun keyCmpInt(x : int, y : int) : bool
   x == y
 
+// Argument parsing
+//==============================================================================
+
+type runMode
+  Fast
+  Full
+
+struct args
+  mode : runMode
+
+effect parseError
+  ctl show-help() : a
+
+fun print-usage()
+  println("Usage: bench [mode]")
+
+fun parse-args()
+  val args = get-args()
+  if args.length() != 1 then
+    show-help()
+  else
+    val run-mode = match args[0]
+      Just(s) -> match s
+        "fast" -> Fast
+        "full" -> Full
+        _ -> show-help()
+      _ -> show-help()
+
+    Args(run-mode)
+
 // Table printing
 //==============================================================================
 
 struct table
   col-widths : list<int>
+
+fun get-print-tbl(implementations : list<implementation>)
+  val columns = list(1,implementations.length).map(fn(_) 13)
+  Table([10] ++ columns)
 
 fun fmt-col(msg : string, column-width : int)
   val num-pad-chars = column-width - msg.count
@@ -81,14 +112,16 @@ fun measure-mem-footprint(exe-path : string, impl : string, seed : int, size : i
     Nothing -> throw("unable to parse bench-mem output: [" ++ cmd-output ++ "]")
     Just(i) -> i
 
-fun measure-mem-footprints()
+fun measure-mem-footprints(implementations : list<implementation>,
+                           input-sizes : list<int>,
+                           seeds : list<int>)
   val exe-path = build-mem-bench()
 
   println("Memory footprint (bytes)")
 
   val impls = implementations.map(fn(i) i.string)
 
-  val mem-tbl = Table([10, 13, 8])
+  val mem-tbl = get-print-tbl(implementations)
   mem-tbl.print(["Num items"] ++ impls)
 
   input-sizes.map(fn(size)
@@ -110,257 +143,260 @@ fun measure-mem-footprints()
 // Operation runtime benchmarking
 //==============================================================================
 
-fun benchmark-implementations()
+struct implInput
+  ty : implementation
+  ins : list<(list<int>,map<int,int>)>
+
+struct testInput
+  size : int
+  impls : list<implInput>
+
+fun benchmark-implementations(implementations : list<implementation>,
+                              input-sizes : list<int>,
+                              seeds : list<int>)
   val num-to-test = 8
 
+  println("Generating inputs...")
+
+  val inputs = input-sizes.map(fn(size)
+    TestInput(size,
+      implementations.map(fn(impl)
+        ImplInput(impl,
+          seeds.map(fn(seed)
+            val input-vals = list(1,size).shuffle(seed)
+
+            val m = match impl
+              ArrayBacked -> create-array-backed-batch(input-vals.map(fn(x) (x,x)), hashInt, keyCmpInt)
+              HamtBacked -> input-vals.foldl(create-hamt-backed(hashInt, keyCmpInt),
+                                             fn(m, x) m.insert(x,x))
+
+            (input-vals, m)
+           )
+         )
+       )
+     )
+   )
+
+  println("")
   println("Benchmarking lookup...")
 
-  val lookup-tbl = Table([10, 13, 8])
+  val lookup-tbl = get-print-tbl(implementations)
   lookup-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size)
-        val to-lookup = inputs.shuffle(seed).take(num-to-test)
-        
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+      i.ins.map(fn((ins,m))
+        val to-lookup = ins.take(num-to-test)
 
         val begin = ticks().nano-seconds()
-
         val res = to-lookup.map(fn(v) m.lookup(v))
-
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    lookup-tbl.print([size.show] ++ impl-times)
+    lookup-tbl.print([input.size.show] ++ impl-times)
   )
+
+
   println("")
 
   println("Benchmarking insert...")
 
-  val insert-tbl = Table([10, 13, 8])
+  val insert-tbl = get-print-tbl(implementations)
   insert-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size + num-to-test).shuffle(seed)
-        val initial-vals = inputs.take(size)
-        val to-insert = inputs.drop(size)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = initial-vals.foldl(mi, fn(m,v) m.insert(v,v))
+      i.ins.map(fn((_,m))
+        val to-insert = list(input.size, input.size + num-to-test)
 
         val begin = ticks().nano-seconds()
-
-        to-insert.foldl(m, fn(mx,v) mx.insert(v,v))
-
+        val res = to-insert.map(fn(v) m.insert(v,v))
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    insert-tbl.print([size.show] ++ impl-times)
+    lookup-tbl.print([input.size.show] ++ impl-times)
   )
+
   println("")
 
   println("Benchmarking delete...")
 
-  val delete-tbl = Table([10, 13, 8])
+  val delete-tbl = get-print-tbl(implementations)
   delete-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size).shuffle(seed)
-        val to-delete = inputs.shuffle(seed).take(num-to-test)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+      i.ins.map(fn((ins,m))
+        val to-delete = ins.take(num-to-test)
 
         val begin = ticks().nano-seconds()
-
         val res = to-delete.map(fn(v) m.delete(v))
-
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    delete-tbl.print([size.show] ++ impl-times)
+    delete-tbl.print([input.size.show] ++ impl-times)
   )
+
   println("")
 
   println("Benchmarking lookup (fail)...")
 
-  val lookup-fail-tbl = Table([10, 13, 8])
+  val lookup-fail-tbl = get-print-tbl(implementations)
   lookup-fail-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size + num-to-test).shuffle(seed)
-        val initial-vals = inputs.take(size)
-        val to-lookup-fail = inputs.drop(size)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+      i.ins.map(fn((_,m))
+        val to-lookup = list(input.size, input.size + num-to-test)
 
         val begin = ticks().nano-seconds()
-
-        val res = to-lookup-fail.map(fn(v) m.lookup(v))
-
+        val res = to-lookup.map(fn(v) m.lookup(v))
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    lookup-fail-tbl.print([size.show] ++ impl-times)
+    lookup-fail-tbl.print([input.size.show] ++ impl-times)
   )
+
   println("")
 
   println("Benchmarking update...")
 
-  val update-tbl = Table([10, 13, 8])
+  val update-tbl = get-print-tbl(implementations)
   update-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size).shuffle(seed)
-        val to-update = inputs.shuffle(seed).take(num-to-test)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
+      i.ins.map(fn((ins,m))
+        val to-update = ins.take(num-to-test)
 
         val begin = ticks().nano-seconds()
-
-        to-update.foldl(m, fn(mx,v) mx.insert(v,v))
-
+        val res = to-update.map(fn(v) m.insert(v,v))
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    update-tbl.print([size.show] ++ impl-times)
+    update-tbl.print([input.size.show] ++ impl-times)
   )
 
   println("")
 
   println("Benchmarking iteration (key + value)...")
 
-  val map-tbl = Table([10, 13, 8])
+  val map-tbl = get-print-tbl(implementations)
   map-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size).shuffle(seed)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-
+      i.ins.map(fn((_,m))
         val begin = ticks().nano-seconds()
-
         m.map-with-key(fn(_,v) v)
-
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    map-tbl.print([size.show] ++ impl-times)
+    map-tbl.print([input.size.show] ++ impl-times)
   )
 
   println("")
 
   println("Benchmarking equality...")
 
-  val equal-tbl = Table([10, 13, 8])
+  val equal-tbl = get-print-tbl(implementations)
   equal-tbl.print(["Num items"] ++ implementations.map(string))
 
-  input-sizes.map(fn(size)
-    val impl-times = implementations.map(fn(impl)
+  inputs.map(fn(input)
+    val impl-times = input.impls.map(fn(i)
       var time-sum := 0
 
-      seeds.map(fn(seed)
-        val inputs = list(1,size).shuffle(seed)
-
-        val mi = match impl
-          ArrayBacked -> create-array-backed(hashInt, keyCmpInt, inputs.length, False)
-          HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
-
-        val m1 = inputs.foldl(mi, fn(m,v) m.insert(v,v))
-        val k-to-delete = inputs[0].unjust
+      i.ins.map(fn((ins,m))
+        val m1 = m
+        val k-to-delete = ins[0].unjust
         val m2 = m1.delete(k-to-delete).insert(k-to-delete, k-to-delete)
-
+        
         val begin = ticks().nano-seconds()
-
         m1.equals(m2, keyCmpInt)
-
         val elapsed = ticks().nano-seconds - begin
+
         time-sum := time-sum + elapsed
       )
 
       (time-sum.ddouble / seeds.length.ddouble / 1000000.ddouble).show(3)
     )
 
-    equal-tbl.print([size.show] ++ impl-times)
+    equal-tbl.print([input.size.show] ++ impl-times)
   )
-
-
 
   ()
 
 fun main()
-  measure-mem-footprints()
-  println("")
-  benchmark-implementations()
+  with handler
+    final ctl show-help() print-usage()
 
-  ()
+  val args = parse-args()
+
+  val input-sizes = match args.mode
+    Full -> list(0,6).map(fn(i) 10.pow(i))
+    Fast -> [10.pow(6)]
+
+  val implementations = match args.mode
+    Full -> [ArrayBacked, HamtBacked]
+    Fast -> [HamtBacked]
+
+  val seeds = match args.mode
+    Full -> list(0,4)
+    Fast -> [0]
+
+  val begin = ticks().nano-seconds()
+
+  match args.mode
+    Full ->
+      measure-mem-footprints(implementations, input-sizes, seeds)
+      println("")
+    _ -> ()
+
+  benchmark-implementations(implementations, input-sizes, seeds)
+
+  val elapsed = ticks().nano-seconds - begin
+  val minutes = (elapsed.ddouble / 1000000000.ddouble / 60.ddouble).show(3)
+  println("")
+  println("Total time: " ++ minutes ++ " minutes")

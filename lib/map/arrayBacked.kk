@@ -7,13 +7,16 @@
 
 module lib/map/arrayBacked
 
+import lib/util/misc
+
 import std/num/int64
 
 // TODO: Instead of storing separate bitvector, use maybe type?
 
 // TODO: Add an option to disable resizing
 
-type mapMember<k,v>
+//type mapMember<k,v>
+pub type mapMember<k,v>
   Unoccupied
   Occupied(key: k, value: v)
 
@@ -34,6 +37,42 @@ pub fun create-map(hashFunc : k -> int,
     allow-resize,
     vector/vector(initial-capacity, Unoccupied)
   )
+
+fun insert-unoccupied( mems : list<(mapMember<k,v>, int)>,
+                       curr-hash : int = 0,
+                       inserted : list<(mapMember<k,v>, int)> = [] ) : _e list<(mapMember<k,v>, int)>
+  match mems
+    Nil -> inserted
+    Cons((mem, next-hash), tail) ->
+      if curr-hash < next-hash then
+        insert-unoccupied(mems, curr-hash + 1, inserted ++ [(Unoccupied,curr-hash)])
+      else if curr-hash == next-hash then
+        insert-unoccupied(tail, curr-hash + 1, inserted ++ [(mem,next-hash)])
+      else
+        insert-unoccupied(tail, curr-hash, inserted ++ [(mem,next-hash)])
+
+pub fun create-map-batch(vals : list<(k,v)>,
+                         hashFunc : k -> int,
+                         keyCmp : (k,k) -> bool,
+                         initial-capacity : int = 32,
+                         allow-resize : bool = True) : <exn,div> arrayBackedMap<k,v>
+  val capacity = max(vals.length, initial-capacity)
+  if capacity > initial-capacity && allow-resize == False then
+    throw("resized when resizing is disabled")
+  else
+    val members = vals
+      .map(fn((k,v)) ( Occupied(k, v), hashFunc(k) ))
+      .sort()
+      .insert-unoccupied()
+      .map(fn((m, _)) m)
+      .vector
+
+    ArrayBackedMap(
+      hashFunc,
+      keyCmp,
+      allow-resize,
+      members
+    )
 
 pub fun count(m : arrayBackedMap<k,v>) : int
   m.members.map(fn(mx) if mx.is-unoccupied() then 0 else 1).vlist.sum

@@ -19,12 +19,20 @@ fun hash-func(x : int) : int
 fun keyCmp(x : int, y : int) : bool
   x == y
 
-fun assert-lookup-returns(m : map<int,string>, k : int, v : string)
+fun string/assert-lookup-returns(m : map<int,string>, k : int, v : string)
    match m.lookup( k )
     Just(str) ->
       if str == v then ()
       else test-fail( "bad value found: " ++ str )
-    Nothing -> test-fail("key not found")
+    Nothing -> test-fail("key not found: " ++ k.show)
+
+fun int/assert-lookup-returns(m : map<int,int>, k : int, v : int)
+   match m.lookup( k )
+    Just(mv) ->
+      if mv == v then ()
+      else test-fail( "bad value found: " ++ mv.show )
+    Nothing -> test-fail("key not found: " ++ k.show)
+
 
 fun assert-lookup-key-not-found(m : map<int,string>, k : int)
    match m.lookup( k )
@@ -32,6 +40,44 @@ fun assert-lookup-key-not-found(m : map<int,string>, k : int)
     Nothing -> ()
 
 val tests = [
+  Case(
+    "sort",
+    [
+      Test(
+        "sort-two-items",
+        fn()
+          val inputs = [(2,2), (1,1)]
+
+          val sorted = inputs.sort()
+
+          val expected = [(1,1), (2,2)]
+          assert(sorted == expected, "lists not equal")
+      ),
+
+      Test(
+        "sort-two-items-sorted",
+        fn()
+          val inputs = [(1,1), (2,2)]
+
+          val sorted = inputs.sort()
+
+          val expected = [(1,1), (2,2)]
+          assert(sorted == expected, "lists not equal")
+      ),
+
+      Test(
+        "sort-nontrivial",
+        fn()
+          val inputs = [ (5,15), (6,16), (7,17), (8,18), (9,19), (10,20), (4,14), (3,13), (2,12), (1,11) ]
+
+          val sorted = inputs.sort()
+
+          val expected = [ (1,11), (2,12), (3,13), (4,14), (5,15), (6,16), (7,17), (8,18), (9,19), (10,20) ]
+          assert(sorted == expected, "lists not equal")
+      )
+    ]
+  ),
+
   Case(
     "array-backed",
     [
@@ -180,6 +226,20 @@ val tests = [
           val result = m1.equals(m2, keyCmp)
 
           assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "array-batch-insert",
+        fn()
+          val inputs = list(1,10).zip(list(11,20)).shuffle(1)
+
+          val m = inputs.create-array-backed-batch( hash-func, keyCmp )
+
+          inputs.map(fn((k,v))
+            assert-lookup-returns(m, k, v)
+          )
+
+          ()
       ),
     ]
   ),
