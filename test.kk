@@ -9,6 +9,7 @@ module test
 
 import lib/map/arrayBacked
 import lib/map/hamtBacked
+import lib/map/champBacked
 import lib/map/map
 import lib/util/misc
 import lib/util/test
@@ -281,18 +282,18 @@ val tests = [
       Test(
         "hamt-map",
         fn()
-          val inputs = list(1,10).zip(list(11,20).map(show))
+          val inputs = list(1,10).zip(list(11,20))
           val m = inputs.foldl(
             create-hamt-backed( hash-func, keyCmp ),
             fn(curr-m, (k,v)) curr-m.insert(k, v)
           )
 
-          val result = m.map/map-with-key(fn(k,x) x)
+          val result = m.map/map-with-key(fn(k,x) x + 1)
 
           if result.count != inputs.length then
             test-fail("result map has bad number of values: " ++ result.count.show)
           else
-            inputs.map(fn((k,v)) result.assert-lookup-returns(k,v))
+            inputs.map(fn((k,v)) result.assert-lookup-returns(k,v + 1))
             ()
       ),
 
@@ -380,8 +381,51 @@ val tests = [
       ),
 
     ]
-  )
+  ),
+
+  Case(
+    "champ-backed",
+    [
+      Test(
+        "champ-insert-lookup",
+        fn()
+          val m = create-champ-backed( hash-func, keyCmp ).insert( 1, "hello" )
+          m.assert-lookup-returns(1, "hello")
+      ),
+
+      Test(
+        "champ-insert-lookup-recurse",
+        fn()
+          val mi = create-champ-backed( hash-func, keyCmp )
+
+          val m = mi
+            .insert( 1, "hello" )
+            .insert( 33, "bar" )
+
+          m.assert-lookup-returns(1, "hello")
+          m.assert-lookup-returns(33, "bar")
+      ),
+
+      Test(
+        "champ-map",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m = inputs.foldl(
+            create-champ-backed( hash-func, keyCmp ),
+            fn(curr-m, (k,v)) curr-m.insert(k, v)
+          )
+
+          val result = m.map/map-with-key(fn(k,x) x + 1)
+
+          if result.count != inputs.length then
+            test-fail("result map has bad number of values: " ++ result.count.show)
+          else
+            inputs.map(fn((k,v)) result.assert-lookup-returns(k,v + 1))
+            ()
+      )
+    ]
+  ),
 ]
 
-fun main()
+pub fun main()
   run-tests(tests)

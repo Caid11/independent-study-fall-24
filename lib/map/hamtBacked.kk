@@ -55,6 +55,8 @@ pub fun count(m : hamtBackedMap<k,v>) : div int
 
 // Basic operations
 
+// TODO: This indexing is slightly off. HAMT uses a dense array, but this one is sparse.
+
 fun calc-idx(hash : int32, shift-width : int) : int
   hash.shr(shift-width).and(31.i32).int
 

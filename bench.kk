@@ -21,11 +21,13 @@ import std/time/timer
 type implementation
   ArrayBacked
   HamtBacked
+  ChampBacked
 
 fun string(x : implementation)
   match x
     ArrayBacked -> "ArrayBacked"
     HamtBacked -> "HAMT"
+    ChampBacked -> "CHAMP"
 
 fun hashInt(x: int) : int
   x
@@ -169,7 +171,8 @@ fun benchmark-implementations(implementations : list<implementation>,
               ArrayBacked -> create-array-backed-batch(input-vals.map(fn(x) (x,x)), hashInt, keyCmpInt)
               HamtBacked -> input-vals.foldl(create-hamt-backed(hashInt, keyCmpInt),
                                              fn(m, x) m.insert(x,x))
-
+              ChampBacked -> input-vals.foldl(create-champ-backed(hashInt, keyCmpInt),
+                                             fn(m, x) m.insert(x,x))
             (input-vals, m)
            )
          )
@@ -379,8 +382,8 @@ fun main()
     Fast -> [10.pow(6)]
 
   val implementations = match args.mode
-    Full -> [ArrayBacked, HamtBacked]
-    Fast -> [HamtBacked]
+    Full -> [ArrayBacked, HamtBacked, ChampBacked]
+    Fast -> [HamtBacked, ChampBacked]
 
   val seeds = match args.mode
     Full -> list(0,4)

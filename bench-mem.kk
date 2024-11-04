@@ -20,6 +20,7 @@ import std/os/env
 type implementation
   ArrayBacked
   HamtBacked
+  ChampBacked
 
 struct args
   implementation : implementation
@@ -31,7 +32,7 @@ effect parseError
 
 fun print-usage()
   println("Usage: bench-mem [implementation] [seed] [num inputs]")
-  println("Options: [implementation]  Map implementation to use. Can be one of: ArrayBacked, HAMT")
+  println("Options: [implementation]  Map implementation to use. Can be one of: ArrayBacked, HAMT, CHAMP")
   println("         [seed]            Random number seed to use when generating inputs.")
   println("         [num inputs]      Number of inputs to insert into the data structure")
 
@@ -44,6 +45,7 @@ fun parse-args()
       Just(s) -> match s
         "ArrayBacked" -> ArrayBacked
         "HAMT" -> HamtBacked
+        "CHAMP" -> ChampBacked
         _ -> show-help()
       _ -> show-help()
 
@@ -85,6 +87,7 @@ fun main()
   val mi = match args.implementation
     ArrayBacked -> create-array-backed(hashInt, keyCmpInt, args.num-inputs, False)
     HamtBacked -> create-hamt-backed(hashInt, keyCmpInt)
+    ChampBacked -> create-champ-backed(hashInt, keyCmpInt)
 
   inputs.foldl(mi, fn(m, x) m.insert(x, x))
 
