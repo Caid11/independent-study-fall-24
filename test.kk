@@ -34,7 +34,6 @@ fun int/assert-lookup-returns(m : map<int,int>, k : int, v : int)
       else test-fail( "bad value found: " ++ mv.show )
     Nothing -> test-fail("key not found: " ++ k.show)
 
-
 fun assert-lookup-key-not-found(m : map<int,string>, k : int)
    match m.lookup( k )
     Just(str) -> test-fail( "value found when key not expected: " ++ str )
@@ -251,10 +250,11 @@ val tests = [
       Test(
         "hamt-insert-lookup",
         fn()
-          val m = create-hamt-backed( hash-func, keyCmp ).insert( 1, "hello" )
-          match m.lookup( 1 )
-            Just("hello") -> ()
-            _ -> test-fail( "bad value found" )
+          val mi = create-hamt-backed( hash-func, keyCmp )
+
+          val m = mi.insert( 1, "hello" )
+
+          m.assert-lookup-returns(1, "hello")
       ),
 
       Test(
@@ -285,7 +285,8 @@ val tests = [
           val inputs = list(1,10).zip(list(11,20))
           val m = inputs.foldl(
             create-hamt-backed( hash-func, keyCmp ),
-            fn(curr-m, (k,v)) curr-m.insert(k, v)
+            fn(curr-m, (k,v))
+              curr-m.insert(k, v)
           )
 
           val result = m.map/map-with-key(fn(k,x) x + 1)
