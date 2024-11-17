@@ -11,6 +11,8 @@ module lib/map/hamtBacked
 
 import std/num/int32
 
+import lib/map/utils
+
 // TODO: At some point try using popc
 // TODO: Switch values to ptrs (also, how does that relate to boxing?)
 // TODO: We're not using the bitmap
@@ -52,26 +54,6 @@ pub fun count(m : hamtBackedMap<k,v>) : div int
   m.root.hamtNode/count()
 
 // Basic operations
-
-// TODO: This indexing is slightly off. HAMT uses a dense array, but this one is sparse.
-
-fun calc-bit-pos(hash : int32, shift-width : int) : int
-  val msk = hash.shr(shift-width).and(31.i32).int
-  (1.int32).shl(msk).int
-
-fun calc-idx(bitmap : int32, bitpos : int) : int
-  val msk = (bitpos - 1).int32
-  val res = popcount( bitmap.and( (bitpos - 1).int32 ))
-  res
-
-fun list/insert(l : list<a>, x : a, idx : int) : list<a>
-  l.take(idx) ++ [x] ++ l.drop(idx)
-
-fun list/set(l : list<a>, x : a, idx : int) : list<a>
-  l.take(idx) ++ [x] ++ l.drop(idx + 1)
-
-fun list/delete(l : list<a>, idx : int) : list<a>
-  l.take(idx) ++ l.drop(idx + 1)
 
 fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) : <div,exn> hamtNode<k,v>
   match n

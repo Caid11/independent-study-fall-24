@@ -9,6 +9,8 @@ module lib/map/champBacked
 
 import std/num/int32
 
+import lib/map/utils
+
 val arity = 32
 val arity-log-two = 5
 
@@ -21,14 +23,14 @@ value struct champLeaf<k,v>
 struct champNode<k,v>
   datamap : int32
   nodemap : int32
-  children : vector<maybe<champNode<k,v>>>
-  data : vector<maybe<champLeaf<k,v>>>
+  children : list<champNode<k,v>>
+  data : list<champLeaf<k,v>>
 
 fun get-empty-node()
   ChampNode(0.int32,
             0.int32,
-            vector/vector(arity, Nothing),
-            vector/vector(arity, Nothing))
+            [],
+            [])
 
 pub struct champBackedMap<k,v>
   hashFunc : k -> int
@@ -45,14 +47,8 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : champBackedMap
 
 fun champNode/count(n : champNode<k,v>) : <div> int
   val num-contained = n.datamap.popcount() - n.nodemap.popcount()
-
-  var num-children-contained := 0
-  n.children.foreach(fn(c)
-    match c
-      Nothing -> ()
-      Just(c) ->
-        num-children-contained := num-children-contained + champNode/count(c)
-        ()
+  val num-children-contained = n.children.foldl(0, fn(curr-count, child)
+    curr-count + child.champNode/count()
   )
   num-contained + num-children-contained
 
@@ -61,45 +57,27 @@ pub fun count(m : champBackedMap<k,v>) : div int
 
 // Basic operations
 
-fun calc-idx(hash : int32, shift-width : int) : int
-  hash.shr(shift-width).and(31.i32).int
-
-fun is-set(bitmask : int32, pos : int) : bool
-  val i = 1.i32.shl(pos)
-  i.and(bitmask) != 0.i32
-
-fun set(bitmask : int32, pos : int) : int32
-  val i = 1.i32.shl(pos)
-  i.or(bitmask)
-
-fun unset(bitmask : int32, pos : int) : int32
-  val i = 1.i32.shl(pos)
-  i.xor(bitmask).and(bitmask)
-
-fun vector/set(v : vector<a>, x : a, idx : int) : _e vector<a>
-  vector-init(arity, fn(i)
-    if i == idx then x
-    else v[i]
-  )
-
 fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) : <div,exn> champNode<k,v>
-  val data-idx = calc-idx(h, shift-width)
+  val bit-pos = calc-bit-pos(h, shift-width)
+  val data-idx = calc-idx(n.datamap, bit-pos)
+  val child-idx = calc-idx(n.nodemap, bit-pos)
 
   // Key not present; insert value into datamap and data
-  if( !n.datamap.is-set(data-idx) ) then
-    n(datamap = n.datamap.set(data-idx),
-      data = n.data.set(Just(ChampLeaf(key-a, h, x)), data-idx))
+  if n.datamap.and( bit-pos.int32 ) == 0.int32 then
+    n(datamap = n.datamap.or( bit-pos.int32 ),
+      data = n.data.insert(ChampLeaf(key-a, h, x), data-idx))
   // Key is present and there is a subtree; recurse
-  else if( n.nodemap.is-set(data-idx) ) then
+  else if n.nodemap.and( bit-pos.int32 ) != 0.int32 then
     val sub-node = match n.children[data-idx]
       Just(node) -> node
-      Nothing -> throw("expected node to be present")
-    n(nodemap = n.nodemap.set(data-idx),
-      children = n.children.set(Just(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x)), data-idx))
+      Nothing -> throw("bad insert idx subtree")
+
+    n(nodemap = n.nodemap.or( bit-pos.int32 ),
+      children = n.children.set(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x), data-idx))
   else
     val d = match n.data[data-idx]
       Just(d) -> d
-      Nothing -> throw("expected data to be present")
+      Nothing -> throw("bad insert idx leaf")
 
     // Value is present but doesn't match key; create subarray and recurse
     if d.hash != h then
@@ -107,12 +85,18 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
         .insert-i(d.hash, shift-width + arity-log-two, d.key, d.stored)
         .insert-i(h, shift-width + arity-log-two, key-a, x)
 
-      n(nodemap = n.nodemap.set(data-idx),
-        data = n.data.set(Nothing, data-idx),
-        children = n.children.set(Just(subarray), data-idx))
+      val new-nodemap = n.nodemap.or( bit-pos.int32 )
+      val new-data = n.data.delete( data-idx )
+      val new-children = n.children.set(subarray, child-idx)
+
+      n(nodemap = new-nodemap,
+        data = new-data,
+        children = new-children)
     // Value is present and matches key; replace and return
     else
-      n(data = n.data.set(Just(ChampLeaf(key-a, h, x)), data-idx))
+      val new-leaf = ChampLeaf(key-a, h, x)
+      val new-data = n.data.set(new-leaf, data-idx)
+      n(data = new-data)
 
 pub fun insert(m : champBackedMap<k,v>, key : k, x : v) : <div,exn> champBackedMap<k,v>
   val hash-func = m.hashFunc
@@ -122,19 +106,22 @@ pub fun insert(m : champBackedMap<k,v>, key : k, x : v) : <div,exn> champBackedM
   m(root = new-root)
 
 fun lookup-i(m : champNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe<v>
-  val idx = calc-idx(h, shift-width)
+  val bit-pos = calc-bit-pos(h, shift-width)
+  val data-idx = calc-idx(m.datamap, bit-pos)
+  val child-idx = calc-idx(m.nodemap, bit-pos)
   
   // If contained in data array but not node array, return data
-  if( m.datamap.is-set(idx) && !m.nodemap.is-set(idx)) then
-    val d = match m.data[idx]
+  if m.datamap.and( bit-pos.int32 ) != 0.int32 && m.nodemap.and( bit-pos.int32 ) == 0.int32 then
+    val d = match m.data[data-idx]
       Just(d) -> d
-      Nothing -> throw("expected data")
+      Nothing -> throw("bad lookup leaf idx")
+
     Just(d.stored)
   // If contained in both arrays, recurse
-  else if( m.datamap.is-set(idx) && m.nodemap.is-set(idx) ) then
-    val n = match m.children[idx]
+  else if m.datamap.and( bit-pos.int32 ) != 0.int32 && m.nodemap.and( bit-pos.int32 ) != 0.int32 then
+    val n = match m.children[child-idx]
       Just(n) -> n
-      Nothing -> throw("expected node")
+      Nothing -> throw("bad lookup node idx")
     lookup-i(n, h, shift-width + arity-log-two)
   // Not contained
   else
@@ -151,16 +138,8 @@ pub fun delete(m : champBackedMap<k,v>, key : k) : <exn,div> champBackedMap<k,v>
 
 // Traversal operations
 fun map-with-key-node(n, f)
-  val new-data = n.data.map(fn(d)
-    match d
-      Nothing -> Nothing
-      Just(d) -> Just(ChampLeaf(d.key, d.hash, f(d.key, d.stored)))
-  )
-  val new-children = n.children.map(fn(c)
-    match c
-      Nothing -> Nothing
-      Just(c) -> Just(map-with-key-node(c, f))
-  )
+  val new-data = n.data.map(fn(d) ChampLeaf(d.key, d.hash, f(d.key, d.stored)))
+  val new-children = n.children.map(fn(c) map-with-key-node(c, f))
   n(data = new-data, children = new-children)
 
 pub fun map-with-key(m, f)
