@@ -104,6 +104,11 @@ fun find-unoccupied-slot(m : arrayBackedMap<k,v>, start-idx : int, key : k) : <d
 
   find-slot(0)
 
+fun vector/set(v : vector<a>, idx : int, x : a) : <div,exn> vector<a>
+  var new-v := v
+  new-v[idx] := x
+  new-v
+
 pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedMap<k,v>
   val hash-func = m.hashFunc
   val hash-idx = hash-func(key) % m.members.length
@@ -116,11 +121,7 @@ pub fun insert(m : arrayBackedMap<k,v>, key : k, x : v) : <div,exn> arrayBackedM
       (idx, resized)
     else throw("resized when resizing is disabled")
 
-  val updated-members = vector-init(resized-m.members.length, fn(i)
-    if i == insert-idx then Occupied(key, x)
-    else resized-m.members[i]
-  )
-
+  val updated-members = resized-m.members.set(insert-idx, Occupied(key, x))
   resized-m(members = updated-members)
 
 pub fun lookup(m : arrayBackedMap<k,v>, key : k) : <div,exn> maybe<v>
