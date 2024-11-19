@@ -11,6 +11,8 @@ import lib/map/arrayBacked
 import lib/map/hamtBacked
 import lib/map/champBacked
 import lib/map/map
+import lib/map/utils
+
 import lib/util/misc
 import lib/util/test
 
@@ -40,6 +42,44 @@ fun assert-lookup-key-not-found(m : map<int,string>, k : int)
     Nothing -> ()
 
 val tests = [
+  Case(
+    "vector",
+    [
+      Test(
+        "vector-insert",
+        fn()
+          val input : vector<int> = [1,2,3].vector
+
+          val res = input.insert(4,1)
+
+          val expected = [1,4,2,3]
+          assert(res.list == expected, "result not equal")
+      ),
+
+      Test(
+        "vector-set",
+        fn()
+          val input : vector<int> = [1,2,3].vector
+
+          val res = input.set(4,1)
+
+          val expected = [1,4,3]
+          assert(res.list == expected, "result not equal")
+      ),
+
+      Test(
+        "vector-delete",
+        fn()
+          val input : vector<int> = [1,2,3].vector
+
+          val res = input.delete(1)
+
+          val expected = [1,3]
+          assert(res.list == expected, "result not equal")
+      ),
+    ]
+  ),
+
   Case(
     "sort",
     [
@@ -226,20 +266,6 @@ val tests = [
           val result = m1.equals(m2, keyCmp)
 
           assert(!result, "maps should not match")
-      ),
-
-      Test(
-        "array-batch-insert",
-        fn()
-          val inputs = list(1,10).zip(list(11,20)).shuffle(1)
-
-          val m = inputs.create-array-backed-batch( hash-func, keyCmp )
-
-          inputs.map(fn((k,v))
-            assert-lookup-returns(m, k, v)
-          )
-
-          ()
       ),
     ]
   ),

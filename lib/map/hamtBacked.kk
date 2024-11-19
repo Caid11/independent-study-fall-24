@@ -26,7 +26,7 @@ value struct hamtLeaf<k,v>
 
 struct hamtArray<k,v>
   bitmap : int32
-  children : list<hamtNode<k,v>>
+  children : vector<hamtNode<k,v>>
 
 type hamtNode<k,v>
   Array(a : hamtArray<k,v>)
@@ -42,13 +42,13 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<
   HamtBackedMap(
     hashFunc,
     keyCmp,
-    Array(HamtArray(0.int32, []))
+    Array(HamtArray(0.int32, vector()))
   )
 
 fun hamtNode/count(n : hamtNode<k,v>) : div int
   match n
     Leaf -> 1
-    Array(a) -> a.children.map(count).sum
+    Array(a) -> a.children.map(count).vlist.sum
 
 pub fun count(m : hamtBackedMap<k,v>) : div int
   m.root.hamtNode/count()
@@ -61,7 +61,7 @@ fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) 
       if l.hash == h then
         Leaf(HamtLeaf(key-a, h, x))
       else
-        Array(HamtArray(0.i32, []))
+        Array(HamtArray(0.i32, vector()))
           .insert-i(l.hash, shift-width, l.key, l.stored)
           .insert-i(h, shift-width, key-a, x)
 
@@ -75,11 +75,7 @@ fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) 
         val new-leaf = Leaf(HamtLeaf(key-a, h, x))
         Array(HamtArray(a.bitmap.or(bit-pos), a.children.insert(new-leaf, idx)))
       else
-        val insert-node = match a.children[idx] 
-          Nothing ->
-            throw("hamt bad insert idx")
-          Just(x) -> x
-
+        val insert-node = a.children[idx] 
         val new-node = insert-node.insert-i(h, shift-width + 5, key-a, x)
         Array(HamtArray(a.bitmap.or(bit-pos), a.children.set(new-node, idx)))
 
@@ -102,10 +98,7 @@ fun lookup-i(m : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe<
 
       if( a.bitmap.and( bit-pos ) == 0.int32 ) then Nothing
       else
-        val lookup-node = match a.children[idx]
-          Nothing -> throw("hamt bad lookup idx")
-          Just(x) -> x
-
+        val lookup-node = a.children[idx]
         lookup-node.lookup-i(h, shift-width + 5)
 
 pub fun lookup(m : hamtBackedMap<k,v>, key : k) : <div,exn> maybe<v>
@@ -125,9 +118,7 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
       // Item isn't present in map, simply return
       if( a.bitmap.and( bit-pos ) == 0.int32 ) then n
       else
-        val delete-node = match a.children[idx]
-          Nothing -> throw("hamt bad delete idx")
-          Just(x) -> x
+        val delete-node = a.children[idx]
 
         match delete-node
           Leaf(l) ->
@@ -138,10 +129,7 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
               
               // If there is a single leaf left in the bitmap, return a leaf instead of an array.
               if new-bitmap.popcount() == 1 then
-                val node = match a.children[0]
-                  Nothing -> throw("hamt expected child")
-                  Just(n) -> n
-
+                val node = a.children[0]
                 match node
                   Leaf(_) -> node
                   Array(_) -> Array(HamtArray(new-bitmap, new-children))
@@ -212,8 +200,10 @@ fun equals-i(n1 : hamtNode<k,v>, n2 : hamtNode<k,v>, cmp: (v,v) -> bool) : <div,
     (Array(a1), Array(a2)) ->
       if a1.bitmap != a2.bitmap then False
       else
-        a1.children.zip(a2.children).foldl(True, fn(children-match, (c1,c2))
-          children-match && equals-i(c1, c2, cmp)
+        list(0,a1.children.length - 1).foldl(True, fn(children-match, i)
+          val c1 = a1.children[i]
+          val c2 = a2.children[i]
+          children-match && c1.equals-i(c2, cmp)
         )
 
     _ -> False

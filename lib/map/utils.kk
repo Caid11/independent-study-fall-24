@@ -32,6 +32,50 @@ pub fun show-bin(bitmap : int32) : string
 
 // List utility functions
 
+// pub fun vector/insert(v : vector<a>, x : a, idx : int) : <div,exn> vector<a>
+//   val new-length = (v.vector/length() + 1).ssize_t
+//   var new-vector := @unsafe-vector(new-length)
+// 
+//   list(0,idx - 1).map(fn(i)
+//     new-vector[i] := v[i]
+//   )
+// 
+//   new-vector[idx] := x
+//   
+//   list(idx,v.length - 1).map(fn(i)
+//     new-vector[i + 1] := v[i]
+//   )
+//   
+//   new-vector
+// 
+// pub fun vector/set(v : vector<a>, x : a, idx : int) : <div,exn> vector<a>
+//   var new-vector := v
+//   new-vector[idx] := x
+//   new-vector
+// 
+// pub fun vector/delete(v : vector<a>, idx : int) : <div,exn> vector<a>
+//   var new-length := (v.vector/length() - 1).ssize_t
+//   var new-vector := @unsafe-vector(new-length)
+// 
+//   list(0,idx - 1).map(fn(i)
+//     new-vector[i] := v[i]
+//   )
+// 
+//   list(idx,v.length - 1).map(fn(i)
+//     new-vector[i - 1] := v[i]
+//   )
+//  
+//   new-vector
+
+pub fun vector/insert(v : vector<a>, x : a, idx : int) : <div,exn> vector<a>
+  v.vlist.insert(x, idx).vector
+
+pub fun vector/set(v : vector<a>, x : a, idx : int) : <div,exn> vector<a>
+  v.vlist.set(x, idx).vector
+
+pub fun vector/delete(v : vector<a>, idx : int) : <div,exn> vector<a>
+  v.vlist.delete(idx).vector
+
 pub fun list/insert(l : list<a>, x : a, idx : int) : list<a>
   l.take(idx) ++ [x] ++ l.drop(idx)
 
