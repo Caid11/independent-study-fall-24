@@ -93,7 +93,7 @@ fun print(tbl : table, vals : list<string>)
 // Ensure mem-bench.kk is built and return its path.
 fun build-mem-bench()
   // Ensure memory bench exe is built and get path.
-  val build-output = match run-system-read("koka bench-mem.kk")
+  val build-output = match run-system-read("koka -O2 bench-mem.kk")
     Ok(res) -> res
     Error(err) -> throw(err.message)
 
@@ -168,7 +168,8 @@ fun benchmark-implementations(implementations : list<implementation>,
             val input-vals = list(1,size).shuffle(seed)
 
             val m = match impl
-              ArrayBacked -> create-array-backed-batch(input-vals.map(fn(x) (x,x)), hashInt, keyCmpInt)
+              ArrayBacked -> input-vals.foldl(create-array-backed(hashInt, keyCmpInt),
+                                             fn(m, x) m.insert(x,x))
               HamtBacked -> input-vals.foldl(create-hamt-backed(hashInt, keyCmpInt),
                                              fn(m, x) m.insert(x,x))
               ChampBacked -> input-vals.foldl(create-champ-backed(hashInt, keyCmpInt),

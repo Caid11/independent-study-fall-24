@@ -15,13 +15,6 @@ pub fun create-array-backed(hashFunc : k -> int,
                             allow-resize : bool = True) : map<k,v>
   Array(create-map(hashFunc, keyCmp, initial-capacity, allow-resize))
 
-pub fun create-array-backed-batch(vals : list<(k,v)>,
-                                  hashFunc : k -> int,
-                                  keyCmp : (k,k) -> bool,
-                                  initial-capacity : int = 32,
-                                  allow-resize : bool = True) : <div,exn> map<k,v>
-  Array(create-map-batch(vals, hashFunc, keyCmp, initial-capacity, allow-resize))
-
 pub fun create-hamt-backed(hashFunc : k -> int, keyCmp : (k,k) -> bool) : map<k,v>
   Hamt(hamtBacked/create-map(hashFunc, keyCmp))
 

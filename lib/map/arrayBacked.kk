@@ -51,29 +51,6 @@ fun insert-unoccupied( mems : list<(mapMember<k,v>, int)>,
       else
         insert-unoccupied(tail, curr-hash, inserted ++ [(mem,next-hash)])
 
-pub fun create-map-batch(vals : list<(k,v)>,
-                         hashFunc : k -> int,
-                         keyCmp : (k,k) -> bool,
-                         initial-capacity : int = 32,
-                         allow-resize : bool = True) : <exn,div> arrayBackedMap<k,v>
-  val capacity = max(vals.length, initial-capacity)
-  if capacity > initial-capacity && allow-resize == False then
-    throw("resized when resizing is disabled")
-  else
-    val members = vals
-      .map(fn((k,v)) ( Occupied(k, v), hashFunc(k) ))
-      .sort()
-      .insert-unoccupied()
-      .map(fn((m, _)) m)
-      .vector
-
-    ArrayBackedMap(
-      hashFunc,
-      keyCmp,
-      allow-resize,
-      members
-    )
-
 pub fun count(m : arrayBackedMap<k,v>) : int
   m.members.map(fn(mx) if mx.is-unoccupied() then 0 else 1).vlist.sum
 
