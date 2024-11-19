@@ -58,7 +58,8 @@ pub fun count(m : hamtBackedMap<k,v>) : div int
 fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) : <div,exn> hamtNode<k,v>
   match n
     Leaf(l) ->
-      if l.hash == h then Leaf(HamtLeaf(key-a, h, x))
+      if l.hash == h then
+        Leaf(HamtLeaf(key-a, h, x))
       else
         Array(HamtArray(0.i32, []))
           .insert-i(l.hash, shift-width, l.key, l.stored)
@@ -68,18 +69,19 @@ fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) 
       val bit-pos = calc-bit-pos(h, shift-width)
       val idx = calc-idx(a.bitmap, bit-pos)
 
-      if( a.bitmap.and( bit-pos.int32 ) == 0.int32 ) then
+      if( a.bitmap.and( bit-pos ) == 0.int32 ) then
         // Slot is free. Create a new leaf, add it to the list of children, and
         // update the bitmap.
         val new-leaf = Leaf(HamtLeaf(key-a, h, x))
-        Array(HamtArray(a.bitmap.or(bit-pos.int32), a.children.insert(new-leaf, idx)))
+        Array(HamtArray(a.bitmap.or(bit-pos), a.children.insert(new-leaf, idx)))
       else
         val insert-node = match a.children[idx] 
-          Nothing -> throw("bad insert idx")
+          Nothing ->
+            throw("hamt bad insert idx")
           Just(x) -> x
 
         val new-node = insert-node.insert-i(h, shift-width + 5, key-a, x)
-        Array(HamtArray(a.bitmap.or(bit-pos.int32), a.children.set(new-node, idx)))
+        Array(HamtArray(a.bitmap.or(bit-pos), a.children.set(new-node, idx)))
 
 pub fun insert(m : hamtBackedMap<k,v>, key : k, x : v) : <div,exn> hamtBackedMap<k,v>
   val hash-func = m.hashFunc
@@ -98,10 +100,10 @@ fun lookup-i(m : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe<
       val bit-pos = calc-bit-pos(h, shift-width)
       val idx = calc-idx(a.bitmap, bit-pos)
 
-      if( a.bitmap.and( bit-pos.int32 ) == 0.int32 ) then Nothing
+      if( a.bitmap.and( bit-pos ) == 0.int32 ) then Nothing
       else
         val lookup-node = match a.children[idx]
-          Nothing -> throw("bad lookup idx")
+          Nothing -> throw("hamt bad lookup idx")
           Just(x) -> x
 
         lookup-node.lookup-i(h, shift-width + 5)
@@ -114,30 +116,30 @@ pub fun lookup(m : hamtBackedMap<k,v>, key : k) : <div,exn> maybe<v>
 
 fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNode<k,v>
   match n
-    Leaf(_) -> throw("delete called on leaf")
+    Leaf(_) -> throw("hamt delete called on leaf")
 
     Array(a) ->
       val bit-pos = calc-bit-pos(h, shift-width)
       val idx = calc-idx(a.bitmap, bit-pos)
 
       // Item isn't present in map, simply return
-      if( a.bitmap.and( bit-pos.int32 ) == 0.int32 ) then n
+      if( a.bitmap.and( bit-pos ) == 0.int32 ) then n
       else
         val delete-node = match a.children[idx]
-          Nothing -> throw("bad delete idx")
+          Nothing -> throw("hamt bad delete idx")
           Just(x) -> x
 
         match delete-node
           Leaf(l) ->
             // Node is a leaf. Clear bit from bitmap and remove from list (if leaf hash is same).
             if l.hash == h then
-              val new-bitmap = a.bitmap.and(bit-pos.int32.not)
+              val new-bitmap = a.bitmap.and(bit-pos.not)
               val new-children = a.children.delete(idx)
               
               // If there is a single leaf left in the bitmap, return a leaf instead of an array.
               if new-bitmap.popcount() == 1 then
                 val node = match a.children[0]
-                  Nothing -> throw("expected child")
+                  Nothing -> throw("hamt expected child")
                   Just(n) -> n
 
                 match node
@@ -150,8 +152,6 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
             // Node is an array. Recursively delete.
             val new-array = delete-node.delete-i(h, shift-width + 5)
             Array(HamtArray(a.bitmap, a.children.set(new-array, idx)))
-            
-
 
 // TODO: What if key isn't present in map?
 pub fun delete(m : hamtBackedMap<k,v>, key : k) : <exn,div> hamtBackedMap<k,v>

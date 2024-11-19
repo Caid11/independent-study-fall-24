@@ -63,21 +63,21 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
   val child-idx = calc-idx(n.nodemap, bit-pos)
 
   // Key not present; insert value into datamap and data
-  if n.datamap.and( bit-pos.int32 ) == 0.int32 then
-    n(datamap = n.datamap.or( bit-pos.int32 ),
-      data = n.data.insert(ChampLeaf(key-a, h, x), data-idx))
   // Key is present and there is a subtree; recurse
-  else if n.nodemap.and( bit-pos.int32 ) != 0.int32 then
-    val sub-node = match n.children[data-idx]
+  if n.nodemap.and( bit-pos ) != 0.int32 then
+    val sub-node = match n.children[child-idx]
       Just(node) -> node
-      Nothing -> throw("bad insert idx subtree")
+      Nothing -> throw("champ bad insert idx subtree")
 
-    n(nodemap = n.nodemap.or( bit-pos.int32 ),
-      children = n.children.set(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x), data-idx))
+    n(nodemap = n.nodemap.or( bit-pos ),
+      children = n.children.set(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x), child-idx))
+  else if n.datamap.and( bit-pos ) == 0.int32 then
+    n(datamap = n.datamap.or( bit-pos ),
+      data = n.data.insert(ChampLeaf(key-a, h, x), data-idx))
   else
     val d = match n.data[data-idx]
       Just(d) -> d
-      Nothing -> throw("bad insert idx leaf")
+      Nothing -> throw("champ bad insert idx leaf")
 
     // Value is present but doesn't match key; create subarray and recurse
     if d.hash != h then
@@ -85,11 +85,13 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
         .insert-i(d.hash, shift-width + arity-log-two, d.key, d.stored)
         .insert-i(h, shift-width + arity-log-two, key-a, x)
 
-      val new-nodemap = n.nodemap.or( bit-pos.int32 )
+      val new-nodemap = n.nodemap.or( bit-pos )
+      val new-datamap = n.datamap.and( bit-pos.not )
       val new-data = n.data.delete( data-idx )
       val new-children = n.children.set(subarray, child-idx)
 
       n(nodemap = new-nodemap,
+        datamap = new-datamap,
         data = new-data,
         children = new-children)
     // Value is present and matches key; replace and return
@@ -109,21 +111,21 @@ fun lookup-i(m : champNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe
   val bit-pos = calc-bit-pos(h, shift-width)
   val data-idx = calc-idx(m.datamap, bit-pos)
   val child-idx = calc-idx(m.nodemap, bit-pos)
-  
-  // If contained in data array but not node array, return data
-  if m.datamap.and( bit-pos.int32 ) != 0.int32 && m.nodemap.and( bit-pos.int32 ) == 0.int32 then
-    val d = match m.data[data-idx]
-      Just(d) -> d
-      Nothing -> throw("bad lookup leaf idx")
 
-    Just(d.stored)
-  // If contained in both arrays, recurse
-  else if m.datamap.and( bit-pos.int32 ) != 0.int32 && m.nodemap.and( bit-pos.int32 ) != 0.int32 then
+  // Key contained in subarray. Recurse.
+  if m.nodemap.and( bit-pos ) != 0.int32 then
     val n = match m.children[child-idx]
       Just(n) -> n
-      Nothing -> throw("bad lookup node idx")
-    lookup-i(n, h, shift-width + arity-log-two)
-  // Not contained
+      Nothing -> throw("champ bad lookup node idx")
+    n.lookup-i(h, shift-width + arity-log-two)
+  // Key contained in data array. Return value.
+  else if m.datamap.and( bit-pos ) != 0.int32 then
+    val d = match m.data[data-idx]
+      Just(d) -> d
+      Nothing -> throw("champ bad lookup leaf idx (idx = " ++ data-idx.show ++ " length = " ++ m.data.length.show ++ ")")
+    if d.hash == h then Just(d.stored)
+    else Nothing
+  // Key not contained in either array.
   else
     Nothing
 

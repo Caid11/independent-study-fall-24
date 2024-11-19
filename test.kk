@@ -258,6 +258,19 @@ val tests = [
       ),
 
       Test(
+        "hamt-insert-lookup-subtree",
+        fn()
+          val mi = create-hamt-backed( hash-func, keyCmp )
+
+          val m = mi
+            .insert( 1, "hello" )
+            .insert( 33, "there" )
+
+          m.assert-lookup-returns(1, "hello")
+          m.assert-lookup-returns(33, "there")
+      ),
+
+      Test(
         "hamt-insert-lookup-update",
         fn()
           val mi = create-hamt-backed( hash-func, keyCmp )
@@ -381,6 +394,20 @@ val tests = [
           assert(!result, "maps should not match")
       ),
 
+      Test(
+        // Regression test with random values from benchmark run.
+        // These inputs caused the tree to recursively insert infinitely until we ran out of levels.
+        "hamt-regression-1",
+        fn()
+          val inputs = [1000000, 999999, 999998, 999997, 999996, 999995, 999994, 999993, 999992, 999991, 999990, 999989, 999988, 999987, 999986, 999985, 999984, 999983, 999982, 999981, 999980, 999979, 999978, 999977, 999976, 999975, 999974, 999973, 999972, 999971, 999970, 999969, 999968]
+
+          val m = inputs.foldl(create-hamt-backed( hash-func, keyCmp ),
+                               fn(m, i) m.insert(i,i))
+
+          inputs.foreach(fn(i)
+            m.assert-lookup-returns(i,i)
+          )
+        ),
     ]
   ),
 
@@ -423,7 +450,23 @@ val tests = [
           else
             inputs.map(fn((k,v)) result.assert-lookup-returns(k,v + 1))
             ()
-      )
+      ),
+
+      Test(
+        // Regression test with random values from benchmark run.
+        // These inputs caused the tree to recursively insert infinitely until we ran out of levels.
+        "champ-regression-1",
+        fn()
+          val inputs = [1000000, 999999, 999998, 999997, 999996, 999995, 999994, 999993, 999992, 999991, 999990, 999989, 999988, 999987, 999986, 999985, 999984, 999983, 999982, 999981, 999980, 999979, 999978, 999977, 999976, 999975, 999974, 999973, 999972, 999971, 999970, 999969, 999968]
+
+          val m = inputs.foldl(create-champ-backed( hash-func, keyCmp ),
+                               fn(m, i) m.insert(i,i))
+
+          inputs.foreach(fn(i)
+            m.assert-lookup-returns(i,i)
+          )
+        ),
+
     ]
   ),
 ]
