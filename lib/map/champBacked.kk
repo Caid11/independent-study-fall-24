@@ -62,12 +62,11 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
   val data-idx = calc-idx(n.datamap, bit-pos)
   val child-idx = calc-idx(n.nodemap, bit-pos)
 
-  // Key not present; insert value into datamap and data
   // Key is present and there is a subtree; recurse
   if n.nodemap.and( bit-pos ) != 0.int32 then
     val sub-node = match n.children[child-idx]
       Just(node) -> node
-      Nothing -> throw("champ bad insert idx subtree")
+      Nothing -> throw("champ bad inset idx subtree (idx = " ++ child-idx.show ++ " length = " ++ n.children.length.show ++ ")")
 
     n(nodemap = n.nodemap.or( bit-pos ),
       children = n.children.set(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x), child-idx))
@@ -88,7 +87,7 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
       val new-nodemap = n.nodemap.or( bit-pos )
       val new-datamap = n.datamap.and( bit-pos.not )
       val new-data = n.data.delete( data-idx )
-      val new-children = n.children.set(subarray, child-idx)
+      val new-children = n.children.insert(subarray, child-idx)
 
       n(nodemap = new-nodemap,
         datamap = new-datamap,
@@ -103,6 +102,7 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
 pub fun insert(m : champBackedMap<k,v>, key : k, x : v) : <div,exn> champBackedMap<k,v>
   val hash-func = m.hashFunc
   val hash = hash-func(key).int32
+
 
   val new-root = insert-i(m.root, hash, 0, key, x)
   m(root = new-root)
