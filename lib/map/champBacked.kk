@@ -23,14 +23,16 @@ value struct champLeaf<k,v>
 struct champNode<k,v>
   datamap : int32
   nodemap : int32
-  children : vector<champNode<k,v>>
-  data : vector<champLeaf<k,v>>
+  // children : vector<champNode<k,v>>
+  // data : vector<champLeaf<k,v>>
+  children : list<champNode<k,v>>
+  data : list<champLeaf<k,v>>
 
 fun get-empty-node()
   ChampNode(0.int32,
             0.int32,
-            vector(),
-            vector())
+            [],
+            [])
 
 pub struct champBackedMap<k,v>
   hashFunc : k -> int
@@ -47,7 +49,8 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : champBackedMap
 
 fun champNode/count(n : champNode<k,v>) : <div> int
   val num-contained = n.datamap.popcount() - n.nodemap.popcount()
-  val num-children-contained = n.children.vlist.foldl(0, fn(curr-count, child)
+  //val num-children-contained = n.children.vlist.foldl(0, fn(curr-count, child)
+  val num-children-contained = n.children.foldl(0, fn(curr-count, child)
     curr-count + child.champNode/count()
   )
   num-contained + num-children-contained
@@ -64,7 +67,10 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
 
   // Key is present and there is a subtree; recurse
   if n.nodemap.and( bit-pos ) != 0.int32 then
-    val sub-node = n.children[child-idx]
+    //val sub-node = n.children[child-idx]
+    val sub-node = match n.children[child-idx]
+      Nothing -> throw("insert bad child idx")
+      Just(v) -> v
 
     n(nodemap = n.nodemap.or( bit-pos ),
       children = n.children.set(insert-i(sub-node, h, shift-width + arity-log-two, key-a, x), child-idx))
@@ -72,7 +78,10 @@ fun insert-i(n : champNode<k,v>, h : int32, shift-width : int, key-a : k, x : v)
     n(datamap = n.datamap.or( bit-pos ),
       data = n.data.insert(ChampLeaf(key-a, h, x), data-idx))
   else
-    val d = n.data[data-idx]
+    // val d = n.data[data-idx]
+    val d = match n.data[data-idx]
+      Nothing -> throw("lookup bad child idx")
+      Just(v) -> v
 
     // Value is present but doesn't match key; create subarray and recurse
     if d.hash != h then
@@ -110,11 +119,17 @@ fun lookup-i(m : champNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe
 
   // Key contained in subarray. Recurse.
   if m.nodemap.and( bit-pos ) != 0.int32 then
-    val n = m.children[child-idx]
+    // val n = m.children[child-idx]
+    val n = match m.children[child-idx]
+      Nothing -> throw("lookup bad child idx")
+      Just(v) -> v
     n.lookup-i(h, shift-width + arity-log-two)
   // Key contained in data array. Return value.
   else if m.datamap.and( bit-pos ) != 0.int32 then
-    val d = m.data[data-idx]
+    // val d = m.data[data-idx]
+    val d = match m.data[data-idx]
+      Nothing -> throw("lookup bad data idx")
+      Just(v) -> v
     if d.hash == h then Just(d.stored)
     else Nothing
   // Key not contained in either array.

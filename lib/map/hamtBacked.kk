@@ -13,10 +13,6 @@ import std/num/int32
 
 import lib/map/utils
 
-// TODO: At some point try using popc
-// TODO: Switch values to ptrs (also, how does that relate to boxing?)
-// TODO: We're not using the bitmap
-
 val arity = 32
 
 value struct hamtLeaf<k,v>
@@ -26,7 +22,8 @@ value struct hamtLeaf<k,v>
 
 struct hamtArray<k,v>
   bitmap : int32
-  children : vector<hamtNode<k,v>>
+  // children : vector<hamtNode<k,v>>
+  children : list<hamtNode<k,v>>
 
 type hamtNode<k,v>
   Array(a : hamtArray<k,v>)
@@ -42,13 +39,14 @@ pub fun create-map(hashFunc : k -> int, keyCmp : (k,k) -> bool) : hamtBackedMap<
   HamtBackedMap(
     hashFunc,
     keyCmp,
-    Array(HamtArray(0.int32, vector()))
+    // Array(HamtArray(0.int32, vector()))
+    Array(HamtArray(0.int32, []))
   )
 
 fun hamtNode/count(n : hamtNode<k,v>) : div int
   match n
     Leaf -> 1
-    Array(a) -> a.children.map(count).vlist.sum
+    Array(a) -> a.children.map(count).sum
 
 pub fun count(m : hamtBackedMap<k,v>) : div int
   m.root.hamtNode/count()
@@ -61,7 +59,8 @@ fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) 
       if l.hash == h then
         Leaf(HamtLeaf(key-a, h, x))
       else
-        Array(HamtArray(0.i32, vector()))
+        // Array(HamtArray(0.i32, vector()))
+        Array(HamtArray(0.i32, []))
           .insert-i(l.hash, shift-width, l.key, l.stored)
           .insert-i(h, shift-width, key-a, x)
 
@@ -75,7 +74,11 @@ fun insert-i(n : hamtNode<k,v>, h : int32, shift-width : int, key-a : k, x : v) 
         val new-leaf = Leaf(HamtLeaf(key-a, h, x))
         Array(HamtArray(a.bitmap.or(bit-pos), a.children.insert(new-leaf, idx)))
       else
-        val insert-node = a.children[idx] 
+        // val insert-node = a.children[idx] 
+        val insert-node = match a.children[idx] 
+          Nothing -> throw("insert bad child idx")
+          Just(v) -> v
+
         val new-node = insert-node.insert-i(h, shift-width + 5, key-a, x)
         Array(HamtArray(a.bitmap.or(bit-pos), a.children.set(new-node, idx)))
 
@@ -98,7 +101,11 @@ fun lookup-i(m : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> maybe<
 
       if( a.bitmap.and( bit-pos ) == 0.int32 ) then Nothing
       else
-        val lookup-node = a.children[idx]
+        // val lookup-node = a.children[idx]
+        val lookup-node = match a.children[idx]
+          Nothing -> throw("lookup bad idx")
+          Just(v) -> v
+
         lookup-node.lookup-i(h, shift-width + 5)
 
 pub fun lookup(m : hamtBackedMap<k,v>, key : k) : <div,exn> maybe<v>
@@ -118,7 +125,10 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
       // Item isn't present in map, simply return
       if( a.bitmap.and( bit-pos ) == 0.int32 ) then n
       else
-        val delete-node = a.children[idx]
+        // val delete-node = a.children[idx]
+        val delete-node = match a.children[idx]
+          Nothing -> throw("delete bad idx")
+          Just(v) -> v
 
         match delete-node
           Leaf(l) ->
@@ -129,7 +139,11 @@ fun delete-i(n : hamtNode<k,v>, h : int32, shift-width : int) : <div,exn> hamtNo
               
               // If there is a single leaf left in the bitmap, return a leaf instead of an array.
               if new-bitmap.popcount() == 1 then
-                val node = a.children[0]
+                // val node = a.children[0]
+                val node = match a.children[0]
+                  Nothing -> throw("delete empty children")
+                  Just(v) -> v
+
                 match node
                   Leaf(_) -> node
                   Array(_) -> Array(HamtArray(new-bitmap, new-children))
@@ -200,11 +214,16 @@ fun equals-i(n1 : hamtNode<k,v>, n2 : hamtNode<k,v>, cmp: (v,v) -> bool) : <div,
     (Array(a1), Array(a2)) ->
       if a1.bitmap != a2.bitmap then False
       else
-        list(0,a1.children.length - 1).foldl(True, fn(children-match, i)
-          val c1 = a1.children[i]
-          val c2 = a2.children[i]
+        // list(0,a1.children.length - 1).foldl(True, fn(children-match, i)
+        //   val c1 = a1.children[i]
+        //   val c2 = a2.children[i]
+        //   children-match && c1.equals-i(c2, cmp)
+        // )
+
+        a1.children.zip(a2.children).foldl(True, fn(children-match, (c1,c2))
           children-match && c1.equals-i(c2, cmp)
         )
+
 
     _ -> False
 
