@@ -142,8 +142,42 @@ pub fun lookup(m : champBackedMap<k,v>, key : k) : <div,exn> maybe<v>
 
   lookup-i(m.root, hash, 0)
 
+fun delete-i(n : champNode<k,v>, h : int32, shift-width : int) : <div,exn> champNode<k,v>
+  val bit-pos = calc-bit-pos(h, shift-width)
+  val data-idx = calc-idx(n.datamap, bit-pos)
+  val child-idx = calc-idx(n.nodemap, bit-pos)
+
+  // Key is present and there is a subtree; recurse
+  if n.nodemap.and( bit-pos ) != 0.int32 then
+    //val sub-node = n.children[child-idx]
+    val sub-node = match n.children[child-idx]
+      Nothing -> throw("insert bad child idx")
+      Just(v) -> v
+
+    val new-subnode = sub-node.delete-i(h, shift-width + 5)
+    
+    // if the subnode is empty, clear its bit in the nodemap and delete the subtree.
+    if new-subnode.datamap.popcount() == 0 && new-subnode.nodemap.popcount() == 0 then
+      val new-nodemap = n.nodemap.and( bit-pos.not )
+      val new-children = n.children.delete( child-idx )
+      n(nodemap = new-nodemap, children = new-children)
+    else
+      n(children = n.children.set(new-subnode, child-idx))
+  // Key is present in datamap. Delete leaf and update map.
+  else if n.datamap.and( bit-pos ) != 0.int32 then
+    val new-datamap = n.datamap.and( bit-pos.not )
+    val new-data = n.data.delete( data-idx )
+    n(datamap = new-datamap, data = new-data)
+  // Key not present in either map. Return
+  else
+    n
+
 pub fun delete(m : champBackedMap<k,v>, key : k) : <exn,div> champBackedMap<k,v>
-  m
+  val hash-func = m.hashFunc
+  val hash = hash-func(key).int32
+  
+  val new-root = delete-i(m.root, hash, 0)
+  m(root = new-root)
 
 // Traversal operations
 fun map-with-key-node(n, f)
@@ -154,6 +188,24 @@ fun map-with-key-node(n, f)
 pub fun map-with-key(m, f)
   ChampBackedMap(m.hashFunc, m.keyCmp, map-with-key-node(m.root, f))
 
+fun equals-i(n1 : champNode<k,v>, n2 : champNode<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
+  if n1.nodemap != n2.nodemap || n1.datamap != n2.datamap then False
+  else
+    // Compare leaves
+    val leaves-equal = n1.data.zip(n2.data).foldl(True, fn(are-equal, (c1,c2))
+      if c1.hash != c2.hash || cmp(c1.stored, c2.stored) == False then False
+      else are-equal
+    )
+
+    if !leaves-equal then False
+    else
+      val children-equal = n1.children.zip(n2.children).foldl(True, fn(are-equal, (c1,c2))
+        if !c1.equals-i(c2, cmp) then False
+        else are-equal
+      )
+
+      children-equal
+
 pub fun equals(m1 : champBackedMap<k,v>, m2 : champBackedMap<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
-  False
+  equals-i(m1.root, m2.root, cmp)
   

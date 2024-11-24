@@ -208,6 +208,7 @@ pub fun intersection(m1 : hamtBackedMap<k,v>, m2 : hamtBackedMap<k,v>) : hamtBac
   m1
 
 fun equals-i(n1 : hamtNode<k,v>, n2 : hamtNode<k,v>, cmp: (v,v) -> bool) : <div,exn> bool
+  // TODO: Koka has trouble with pattern matching. Could this interfere and cause opt infinite loop?
   val nodes = (n1,n2)
   match nodes
     (Leaf(l1), Leaf(l2)) -> l1.hash == l2.hash && cmp(l1.stored, l2.stored)

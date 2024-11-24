@@ -479,6 +479,100 @@ val tests = [
       ),
 
       Test(
+        "champ-insert-delete",
+        fn()
+          val mi = create-champ-backed( hash-func, keyCmp )
+          val m1 = mi.insert( 1, "foo" )
+          val m2 = m1.delete( 1 )
+
+          m1.assert-lookup-returns(1, "foo")
+          m2.assert-lookup-key-not-found(1)
+      ),
+
+      Test(
+        "champ-equals-empty",
+        fn()
+          val m1 = create-champ-backed( hash-func, keyCmp )
+          val m2 = create-champ-backed( hash-func, keyCmp )
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "champ-equals-one-empty-one-with-value",
+        fn()
+          val m1 = create-champ-backed( hash-func, keyCmp )
+          val m2 = create-champ-backed( hash-func, keyCmp ).insert(1,1)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "champ-equals-insert-delete-values",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, to-delete-v) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k).insert(to-delete-k, to-delete-v)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "champ-equals-same-values-inserted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val m2 = inputs.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(result, "maps should match")
+      ),
+
+      Test(
+        "champ-equals-value-deleted",
+        fn()
+          val inputs = list(1,10).zip(list(11,20))
+          val m1 = inputs.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val (to-delete-k, _) = match inputs[0]
+            Just((k,v)) -> (k,v)
+          val m2 = m1.delete(to-delete-k)
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
+        "champ-equals-diff-values-inserted",
+        fn()
+          val inputs-m1 = list(1,10).zip(list(11,20))
+          val m1 = inputs-m1.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+          val inputs-m2 = list(21,30).zip(list(31,40))
+          val m2 = inputs-m2.foldl(create-champ-backed( hash-func, keyCmp ),
+                                fn(m, (k,v)) m.insert(k,v))
+
+          val result = m1.equals(m2, keyCmp)
+
+          assert(!result, "maps should not match")
+      ),
+
+      Test(
         // Regression test with random values from benchmark run.
         // These inputs caused the tree to recursively insert infinitely until we ran out of levels.
         "champ-regression-1",
